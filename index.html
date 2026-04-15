@@ -502,12 +502,12 @@ function goScreen(name){
     pb.style.letterSpacing=easy?'.02em':'0';
   }
   if(name==='today'){
-    if(state.tasks.length===0)loadToday();   // first ever load — show spinner
-    else{renderToday();refreshToday();}      // already have data — render instantly, sync silently
+    if(state.tasks.length===0)loadToday();
+    else{renderToday();if(!_saveExtrasPending&&_savesInFlight===0)refreshToday();}
   }
   if(name==='pick'){
     if(state.tasks.length===0)loadToday().then(()=>renderPick());
-    else{renderPick();refreshToday().then(()=>renderPick());}
+    else{renderPick();if(!_saveExtrasPending&&_savesInFlight===0)refreshToday().then(()=>renderPick());}
   }
   if(name==='log')loadLog();
   if(name==='admin')renderAdmin();
@@ -550,7 +550,7 @@ function endSave(){if(_savesInFlight>0)_savesInFlight--;}
 async function refreshToday(){
   if(_refreshing||!getApiUrl())return;
   if(_savesInFlight>0)return; // a save is still in progress — don't overwrite local state
-  if(Date.now()-_lastWrite<3000)return; // brief grace period after last write
+  if(Date.now()-_lastWrite<15000)return; // grace period after last write — covers slow Apps Script
   _refreshing=true;
   try{
     const[tr,cr,er,sr]=await Promise.all([
@@ -820,17 +820,27 @@ function addFreeTask(){
 }
 
 let _saveExtrasTimer=null;
+let _saveExtrasPending=false; // true while debounce is waiting or save is in flight
+
 function saveExtras(){
-  // Debounce -- only fire after 400ms of no further changes
+  markWritten();
+  // Mark as pending immediately so refresh is blocked
+  if(!_saveExtrasPending){
+    _saveExtrasPending=true;
+    _savesInFlight++;
+  }
+  // Debounce — reset the timer on each call, fire once things settle
   clearTimeout(_saveExtrasTimer);
   _saveExtrasTimer=setTimeout(async()=>{
     const sentinel={id:'__picked__',name:JSON.stringify(state.pickedExtras),cat:'',note:''};
     const sessSentinel={id:'__session_overrides__',name:JSON.stringify(state.sessionOverrides),cat:'',note:''};
     const free=state.freeExtras.map(e=>({...e}));
-    beginSave();
     try{await apiPost({action:'setExtras',date:todayKey(),extras:[sentinel,sessSentinel,...free]})}
     catch(e){console.error('saveExtras failed:',e)}
-    finally{endSave()}
+    finally{
+      _saveExtrasPending=false;
+      endSave();
+    }
   },400);
 }
 

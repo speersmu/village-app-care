@@ -149,13 +149,14 @@ html,body{height:100%;overflow:hidden;background:var(--parchment);font-family:'D
 .modal-title{font-size:17px;font-weight:700;color:var(--stone);margin-bottom:4px}
 .modal-cat{font-size:12px;color:var(--pebble);margin-bottom:16px;font-weight:500;letter-spacing:.03em;text-transform:uppercase}
 .modal-section-label{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--pebble);margin-bottom:6px}
-.modal-desc{font-size:15px;color:var(--driftwood);line-height:1.6;background:var(--parchment);border-radius:12px;padding:14px 16px;min-height:60px;white-space:pre-wrap;word-break:break-word;border:1px solid var(--linen)}
+.modal-desc{font-size:15px;color:var(--stone);line-height:1.6;background:var(--parchment);border-radius:12px;padding:14px 16px;min-height:60px;white-space:pre-wrap;word-break:break-word;border:1px solid var(--linen)}
 .modal-session-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:600}
 .sess-lunchtime{background:#FFF8E7;color:#7B4A0A}
 .sess-afternoon{background:#EEF4FF;color:#1A3A7C}
 .sess-both{background:var(--mist);color:var(--deep-forest)}
 .sess-unset{background:var(--linen);color:var(--pebble)}
-.modal-close{width:100%;padding:15px;border:1px solid var(--linen);background:var(--parchment);border-radius:14px;font-size:15px;color:var(--driftwood);cursor:pointer;font-family:inherit;margin-top:16px;font-weight:500}
+.modal-close{width:100%;padding:15px;border:none;background:var(--forest);border-radius:14px;font-size:15px;color:#fff;cursor:pointer;font-family:inherit;margin-top:16px;font-weight:600}
+.modal-close:active{opacity:.85}
 /* info button on task card */
 .info-btn{background:none;border:none;color:var(--pebble);cursor:pointer;padding:6px 4px;font-size:16px;line-height:1;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;transition:background .1s}
 .info-btn:active{background:var(--linen)}
@@ -168,8 +169,8 @@ html,body{height:100%;overflow:hidden;background:var(--parchment);font-family:'D
 .easy-mode .modal-title{font-size:22px}
 .easy-mode .modal-cat{font-size:15px;color:var(--driftwood)}
 .easy-mode .modal-section-label{font-size:14px;color:var(--stone)}
-.easy-mode .modal-desc{font-size:18px;color:var(--stone);line-height:1.7}
-.easy-mode .modal-close{font-size:18px;padding:18px}
+.easy-mode .modal-desc{font-size:19px;color:var(--stone);line-height:1.7;font-weight:500}
+.easy-mode .modal-close{font-size:19px;padding:20px;border-radius:18px}
 /* session badge on task */
 .sess-badge{display:inline-block;margin-top:4px;margin-left:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
 /* admin session select */
@@ -386,10 +387,14 @@ function toggleEasyMode(){
   // Update print button size to match
   const pb=document.getElementById('print-btn');
   if(pb&&pb.style.display!=='none'){
-    pb.style.padding=next?'10px 16px':'6px 10px';
-    pb.style.fontSize=next?'15px':'12px';
-    pb.style.borderRadius=next?'12px':'8px';
+    pb.style.padding=next?'9px 16px':'6px 10px';
+    pb.style.fontSize=next?'13px':'12px';
+    pb.style.borderRadius=next?'20px':'8px';
     pb.style.fontWeight=next?'600':'400';
+    pb.style.background=next?'rgba(82,183,136,0.25)':'rgba(255,255,255,.12)';
+    pb.style.border=next?'1px solid rgba(82,183,136,0.5)':'1px solid rgba(255,255,255,.2)';
+    pb.style.color=next?'#c8f0df':'rgba(255,255,255,.85)';
+    pb.style.letterSpacing=next?'.02em':'0';
   }
 }
 
@@ -405,10 +410,14 @@ function goScreen(name){
   if(pb){
     pb.style.display=name==='today'?'flex':'none';
     const easy=isEasyMode();
-    pb.style.padding=easy?'10px 16px':'6px 10px';
-    pb.style.fontSize=easy?'15px':'12px';
-    pb.style.borderRadius=easy?'12px':'8px';
+    pb.style.padding=easy?'9px 16px':'6px 10px';
+    pb.style.fontSize=easy?'13px':'12px';
+    pb.style.borderRadius=easy?'20px':'8px';
     pb.style.fontWeight=easy?'600':'400';
+    pb.style.background=easy?'rgba(82,183,136,0.25)':'rgba(255,255,255,.12)';
+    pb.style.border=easy?'1px solid rgba(82,183,136,0.5)':'1px solid rgba(255,255,255,.2)';
+    pb.style.color=easy?'#c8f0df':'rgba(255,255,255,.85)';
+    pb.style.letterSpacing=easy?'.02em':'0';
   }
   if(name==='today'){
     if(state.tasks.length===0)loadToday();   // first ever load — show spinner

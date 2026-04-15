@@ -415,11 +415,18 @@ const CAT_LABELS={personal:'Personal care',nursery:'Nursery / boys room',kitchen
 const CAT_ORDER=['medical','personal','nursery','kitchen','home','garden','admin','errands','christmas','extra'];
 const FREQ_LABELS={daily:'Every day',weekdays:'Weekdays','mon-wed-fri':'Mon/Wed/Fri','tue-thu':'Tue/Thu','weekly-mon':'Weekly (Mon)','weekly-wed':'Weekly (Wed)','weekly-fri':'Weekly (Fri)','as-needed':'As needed'};
 
-function todayKey(){const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate()}
+function todayKey(){
+  const d=new Date();
+  const mm=String(d.getMonth()+1).padStart(2,'0');
+  const dd=String(d.getDate()).padStart(2,'0');
+  return d.getFullYear()+'-'+mm+'-'+dd;
+}
 function ls(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch{return d}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
-const HARDCODED_API_URL='https://script.google.com/macros/s/AKfycbzPEzh55je9LQ3Ioocg7eUl1Wd6grPWWvBWpdZUYcm6QaMtoYxuPUJD9llct_0TM0N9Iw/exec';
-function getApiUrl(){return ls('api_url','')||HARDCODED_API_URL}
+const HARDCODED_API_URL='https://script.google.com/macros/s/AKfycbx9IQJq9WjibpZLFfmjPTQoY0utUbN9lB66_3RRAr4vZtIrnZeu8T8xSHW9pc7Jpa85Rw/exec';
+// Clear any previously cached URL so the new deployment is always used
+if(ls('api_url','')!==HARDCODED_API_URL)lsSet('api_url','');
+function getApiUrl(){return HARDCODED_API_URL}
 function setApiUrl(u){lsSet('api_url',u)}
 function isAdminUnlocked(){return ls('admin_unlocked',false)}
 function setAdminUnlocked(v){lsSet('admin_unlocked',v)}

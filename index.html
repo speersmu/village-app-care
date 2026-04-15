@@ -159,6 +159,17 @@ html,body{height:100%;overflow:hidden;background:var(--parchment);font-family:'D
 /* info button on task card */
 .info-btn{background:none;border:none;color:var(--pebble);cursor:pointer;padding:6px 4px;font-size:16px;line-height:1;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;transition:background .1s}
 .info-btn:active{background:var(--linen)}
+
+/* Easy mode — larger, more visible info button */
+.easy-mode .info-btn{width:40px;height:40px;font-size:22px;color:var(--forest);background:var(--mist);border-radius:50%}
+.easy-mode .info-btn:active{background:var(--sage);color:#fff}
+
+/* Easy mode — stronger modal text */
+.easy-mode .modal-title{font-size:22px}
+.easy-mode .modal-cat{font-size:15px;color:var(--driftwood)}
+.easy-mode .modal-section-label{font-size:14px;color:var(--stone)}
+.easy-mode .modal-desc{font-size:18px;color:var(--stone);line-height:1.7}
+.easy-mode .modal-close{font-size:18px;padding:18px}
 /* session badge on task */
 .sess-badge{display:inline-block;margin-top:4px;margin-left:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
 /* admin session select */
@@ -372,6 +383,14 @@ function toggleEasyMode(){
   lsSet('easy_mode',next);
   document.getElementById('app').classList.toggle('easy-mode',next);
   document.getElementById('easy-sw').classList.toggle('on',next);
+  // Update print button size to match
+  const pb=document.getElementById('print-btn');
+  if(pb&&pb.style.display!=='none'){
+    pb.style.padding=next?'10px 16px':'6px 10px';
+    pb.style.fontSize=next?'15px':'12px';
+    pb.style.borderRadius=next?'12px':'8px';
+    pb.style.fontWeight=next?'600':'400';
+  }
 }
 
 function goScreen(name){
@@ -383,7 +402,14 @@ function goScreen(name){
   const titles={today:"Today's tasks",pick:'Pick tasks',log:'Daily log',admin:'Admin'};
   // title is rendered inside each screen, not in the topbar
   const pb=document.getElementById('print-btn');
-  if(pb)pb.style.display=name==='today'?'block':'none';
+  if(pb){
+    pb.style.display=name==='today'?'flex':'none';
+    const easy=isEasyMode();
+    pb.style.padding=easy?'10px 16px':'6px 10px';
+    pb.style.fontSize=easy?'15px':'12px';
+    pb.style.borderRadius=easy?'12px':'8px';
+    pb.style.fontWeight=easy?'600':'400';
+  }
   if(name==='today'){
     if(state.tasks.length===0)loadToday();   // first ever load — show spinner
     else{renderToday();refreshToday();}      // already have data — render instantly, sync silently
@@ -424,12 +450,16 @@ async function loadToday(){
 
 // Silent background refresh — no spinner, only re-renders if data changed
 let _refreshing=false;
-let _lastWrite=0; // timestamp of last local write — blocks refresh for 5s after any change
+let _lastWrite=0;
+let _savesInFlight=0; // counts active saves — refresh blocked while any are pending
 
 function markWritten(){_lastWrite=Date.now();}
+function beginSave(){_savesInFlight++;markWritten();}
+function endSave(){if(_savesInFlight>0)_savesInFlight--;}
 async function refreshToday(){
   if(_refreshing||!getApiUrl())return;
-  if(Date.now()-_lastWrite<8000)return; // don't overwrite a recent local change
+  if(_savesInFlight>0)return; // a save is still in progress — don't overwrite local state
+  if(Date.now()-_lastWrite<3000)return; // brief grace period after last write
   _refreshing=true;
   try{
     const[tr,cr,er,sr]=await Promise.all([
@@ -508,8 +538,8 @@ setInterval(()=>{
 // Refresh when user returns to the tab after being away
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'&&getApiUrl()){
-    // Delay refresh by 2s so any pending saves finish before we fetch from Sheets
-    setTimeout(()=>refreshToday(),2000);
+    markWritten(); // reset grace period on return so refresh waits 3s before firing
+    refreshToday();
   }
 });
 
@@ -612,7 +642,10 @@ async function toggleTask(id){
   if(idx>-1)state.checked.splice(idx,1);else state.checked.push(id);
   markWritten();
   renderToday();
-  try{await apiPost({action:'setChecked',date:todayKey(),ids:state.checked});await saveLogEntry()}catch(e){console.error(e)}
+  beginSave();
+  try{await apiPost({action:'setChecked',date:todayKey(),ids:state.checked});await saveLogEntry()}
+  catch(e){console.error(e)}
+  finally{endSave()}
 }
 
 async function saveLogEntry(){
@@ -708,8 +741,10 @@ function saveExtras(){
     const sentinel={id:'__picked__',name:JSON.stringify(state.pickedExtras),cat:'',note:''};
     const sessSentinel={id:'__session_overrides__',name:JSON.stringify(state.sessionOverrides),cat:'',note:''};
     const free=state.freeExtras.map(e=>({...e}));
+    beginSave();
     try{await apiPost({action:'setExtras',date:todayKey(),extras:[sentinel,sessSentinel,...free]})}
     catch(e){console.error('saveExtras failed:',e)}
+    finally{endSave()}
   },400);
 }
 
@@ -1074,7 +1109,7 @@ function printToday(){
   </body></html>`;
 
   const w=window.open('','_blank','width=800,height=900');
-  markWritten(); // prevent visibility-change refresh from overwriting state when user returns
+  markWritten(); // keeps grace period active while user is in print dialog
   if(!w){alert('Please allow popups for this site to enable printing.');return}
   w.document.write(html);
   w.document.close();

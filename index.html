@@ -256,8 +256,22 @@ input:focus,select:focus{border-color:var(--forest);box-shadow:0 0 0 3px rgba(45
 
   <div class="topbar">
     <div class="topbar-left">
-      <div class="topbar-wordmark">Village</div>
-      <div class="topbar-tagline">your circle of care</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <!-- Village logo mark: Option B — heart/care shape -->
+        <svg width="36" height="36" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0">
+          <rect width="36" height="36" rx="9" fill="#2D6A4F"/>
+          <!-- Heart shape outer -->
+          <path d="M18 27 C4 18 4 8 18 13 C32 8 32 18 18 27Z" fill="#1B4332"/>
+          <!-- Heart shape inner highlight -->
+          <path d="M18 23 C8 16 8 10 18 14 C28 10 28 16 18 23Z" fill="#52B788"/>
+          <!-- Person dot at top — the one being cared for -->
+          <circle cx="18" cy="9" r="3.5" fill="#E8F5EE"/>
+        </svg>
+        <div>
+          <div class="topbar-wordmark">Village</div>
+          <div class="topbar-tagline">your circle of care</div>
+        </div>
+      </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
       <button onclick="printToday()" id="print-btn" style="display:none;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:6px 10px;cursor:pointer;color:rgba(255,255,255,.85);font-size:12px;font-family:inherit;white-space:nowrap">

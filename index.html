@@ -171,7 +171,9 @@ html,body{height:100%;overflow:hidden;background:var(--parchment);font-family:'D
 .easy-mode .modal-section-label{font-size:14px;color:var(--stone)}
 .easy-mode .modal-desc{font-size:19px;color:var(--stone);line-height:1.7;font-weight:500}
 .easy-mode .modal-close{font-size:19px;padding:20px;border-radius:18px}
-/* session badge on task */
+/* remove button on task card */
+.remove-btn{background:none;border:none;color:var(--pebble);cursor:pointer;padding:4px 6px;font-size:18px;line-height:1;flex-shrink:0;opacity:0.5;transition:opacity .15s;font-weight:300}
+.remove-btn:active,.remove-btn:hover{opacity:1;color:var(--ember)}
 .sess-badge{display:inline-block;margin-top:4px;margin-left:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
 /* admin session select */
 .sess-select{padding:6px 10px;border:1px solid var(--linen);border-radius:8px;background:var(--white);color:var(--stone);font-size:12px;cursor:pointer;font-family:inherit;flex-shrink:0}
@@ -199,12 +201,13 @@ input:focus,select:focus{border-color:var(--forest);box-shadow:0 0 0 3px rgba(45
 .btn:active{opacity:.85}
 .flash{display:none;text-align:center;padding:12px;background:var(--mist);border-radius:12px;color:var(--deep-forest);font-size:14px;font-weight:600;margin-top:12px}
 .flash.show{display:block}
-.master-item{display:flex;align-items:center;gap:8px;padding:12px 0;border-bottom:1px solid var(--linen)}
+.master-item{display:flex;align-items:flex-start;gap:8px;padding:14px 0;border-bottom:1px solid var(--linen)}
 .master-item:last-child{border-bottom:none}
 .master-item-info{flex:1;min-width:0}
-.master-item-name{font-size:14px;color:var(--stone);line-height:1.35;font-weight:500}
+.master-item-name{font-size:14px;color:var(--stone);line-height:1.35;font-weight:500;word-break:break-word}
 .master-item.inactive .master-item-name{color:var(--pebble);text-decoration:line-through}
 .master-freq{font-size:11px;color:var(--pebble);margin-top:2px}
+.master-item-controls{display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:nowrap}
 .tog-btn{padding:5px 11px;border:1px solid var(--linen);border-radius:8px;background:var(--parchment);color:var(--driftwood);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0}
 .tog-btn.on{background:var(--mist);color:var(--deep-forest);border-color:var(--sage)}
 .del-btn{background:none;border:none;color:var(--pebble);cursor:pointer;font-size:20px;padding:4px 6px;line-height:1;flex-shrink:0}
@@ -450,7 +453,7 @@ async function apiPost(body){
   const d=await r.json();if(d.error)throw new Error(d.error);return d;
 }
 
-let state={tasks:[],checked:[],pickedExtras:[],freeExtras:[],sessionOverrides:{},settings:{}};
+let state={tasks:[],checked:[],pickedExtras:[],freeExtras:[],sessionOverrides:{},hiddenToday:[],settings:{}};
 let sheetId=null,sheetIsExtra=false,pinBuffer='';
 
 function isScheduledToday(freq){
@@ -538,6 +541,8 @@ async function loadToday(){
     state.pickedExtras=sentinel?(JSON.parse(sentinel.name||'[]')).map(String):[];
     const sessSentinel=extras.find(e=>e.id==='__session_overrides__');
     state.sessionOverrides=sessSentinel?JSON.parse(sessSentinel.name||'{}'):{};
+    const hiddenSentinel=extras.find(e=>e.id==='__hidden__');
+    state.hiddenToday=hiddenSentinel?(JSON.parse(hiddenSentinel.name||'[]')).map(String):[];
     state.freeExtras=extras.filter(e=>e.id&&e.id.startsWith('f_'));
     state.settings=sr.settings||{};
     renderToday();
@@ -573,6 +578,8 @@ async function refreshToday(){
     const newPicked=sentinel?(JSON.parse(sentinel.name||'[]')).map(String):[];
     const sessSentinel=extras.find(e=>e.id==='__session_overrides__');
     const newOverrides=sessSentinel?JSON.parse(sessSentinel.name||'{}'):{};
+    const hiddenSentinel=extras.find(e=>e.id==='__hidden__');
+    const newHidden=hiddenSentinel?(JSON.parse(hiddenSentinel.name||'[]')).map(String):[];
     const newFree=extras.filter(e=>e.id&&e.id.startsWith('f_'));
     const newSettings=sr.settings||{};
 
@@ -582,6 +589,7 @@ async function refreshToday(){
       JSON.stringify(newChecked)!==JSON.stringify(state.checked)||
       JSON.stringify(newPicked)!==JSON.stringify(state.pickedExtras)||
       JSON.stringify(newOverrides)!==JSON.stringify(state.sessionOverrides)||
+      JSON.stringify(newHidden)!==JSON.stringify(state.hiddenToday)||
       JSON.stringify(newFree)!==JSON.stringify(state.freeExtras)||
       JSON.stringify(newSettings)!==JSON.stringify(state.settings);
 
@@ -590,6 +598,7 @@ async function refreshToday(){
       state.checked=newChecked;
       state.pickedExtras=newPicked;
       state.sessionOverrides=newOverrides;
+      state.hiddenToday=newHidden;
       state.freeExtras=newFree;
       state.settings=newSettings;
       // Re-render whichever screen is currently active
@@ -671,39 +680,37 @@ function renderToday(){
     <button onclick="loadToday()" style="background:none;border:none;font-size:12px;color:var(--pebble);cursor:pointer;font-family:inherit;padding:4px 0">&#8635; Refresh</button>
   </div>`;
 
-  // Daily tasks grouped by category
-  const dailyGroups={};
-  dailyTasks.forEach(t=>(dailyGroups[t.cat]=dailyGroups[t.cat]||[]).push(t));
-  let hasDailyContent=false;
-  CAT_ORDER.forEach(cat=>{
-    if(!dailyGroups[cat])return;
-    hasDailyContent=true;
-    html+=`<div class="sec-label">${CAT_LABELS[cat]||cat}</div>`;
-    dailyGroups[cat].forEach(t=>html+=taskCardHtml(t));
-  });
-  if(!hasDailyContent)html+=`<div class="empty" style="padding:24px 20px">No daily tasks scheduled today.</div>`;
+  // Group ALL today's tasks by effective session
+  const lunchtime=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='lunchtime'||s==='both'});
+  const afternoon=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='afternoon'||s==='both'});
+  const unassigned=allToday.filter(t=>{const s=getEffectiveSession(t);return !s||s==='unset'});
 
-  // Picked extras
-  if(pickedTasks.length||state.freeExtras.length){
-    html+=`<div class="sec-label" style="color:var(--deep-forest)">Added for today</div>`;
-    const pickedGroups={};
-    pickedTasks.forEach(t=>(pickedGroups[t.cat]=pickedGroups[t.cat]||[]).push(t));
-    CAT_ORDER.forEach(cat=>{
-      if(!pickedGroups[cat])return;
-      pickedGroups[cat].forEach(t=>html+=taskCardHtml(t,true));
+  function sessionSection(label,emoji,colour,tasks){
+    if(!tasks.length)return'';
+    let s=`<div class="sec-label" style="color:${colour}">${emoji} ${label}</div>`;
+    tasks.forEach(t=>{
+      const isExtra=!isScheduledToday(t.freq)||t.freq==='as-needed'||t.id.startsWith('f_');
+      s+=taskCardHtml(t,isExtra);
     });
-    state.freeExtras.forEach(t=>html+=taskCardHtml(t,true));
+    return s;
   }
 
-  // Prompt to pick if nothing added yet
-  if(!pickedTasks.length&&!state.freeExtras.length){
-    html+=`<div style="margin:8px 14px 0;padding:16px 18px;background:var(--white);border-radius:var(--card-radius);border:1px dashed var(--linen);text-align:center">
-      <div style="font-size:14px;color:var(--driftwood);margin-bottom:12px">Want to add extra tasks for today?</div>
-      <button onclick="goScreen('pick')" style="padding:10px 22px;background:var(--forest);color:#fff;border:none;border-radius:18px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">Pick tasks</button>
-    </div>`;
+  html+=sessionSection('Lunchtime','🕛','var(--driftwood)',lunchtime);
+  html+=sessionSection('Afternoon','🌤','var(--driftwood)',afternoon);
+  if(unassigned.length){
+    html+=sessionSection('Unassigned','📋','var(--pebble)',unassigned);
   }
+
+  if(!allToday.length)html+=`<div class="empty" style="padding:24px 20px">No tasks scheduled today.</div>`;
+
+  // Pick tasks prompt at the bottom
+  html+=`<div style="margin:12px 14px 8px;padding:14px 18px;background:var(--white);border-radius:var(--card-radius);border:1px dashed var(--linen);text-align:center">
+    <div style="font-size:13px;color:var(--driftwood);margin-bottom:10px">Add extra tasks for today</div>
+    <button onclick="goScreen('pick')" style="padding:9px 20px;background:var(--forest);color:#fff;border:none;border-radius:18px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Pick tasks</button>
+  </div>`;
 
   document.getElementById('today-inner').innerHTML=html;
+  initSwipe();
 }
 
 // Returns today's override if set, otherwise the task's default session
@@ -711,22 +718,37 @@ function getEffectiveSession(t){
   return state.sessionOverrides[String(t.id)] || t.session || 'unset';
 }
 
+function hideTaskToday(id){
+  const sid=String(id);
+  if(!state.hiddenToday.includes(sid))state.hiddenToday.push(sid);
+  markWritten();
+  renderToday();
+  saveExtras();
+}
+
+function initSwipe(){
+  // X button handles removal — no swipe needed
+}
+
 function taskCardHtml(t,isExtra=false){
   const isDone=state.checked.includes(t.id);
+  const isHidden=state.hiddenToday.includes(String(t.id));
+  if(isHidden)return''; // hidden for today
   const note=t.note?`<div class="task-note">${t.note}</div>`:'';
   const menuBtn=isExtra
     ?`<button class="menu-btn" onclick="event.stopPropagation();openSheet('${t.id}','${t.name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">&#8943;</button>`
     :'';
   const infoBtn=`<button class="info-btn" onclick="event.stopPropagation();openInfoModal('${t.id}')" title="More info">ⓘ</button>`;
+  const removeBtn=`<button class="remove-btn" onclick="event.stopPropagation();hideTaskToday('${t.id}')" title="Hide today">×</button>`;
   const effSess=getEffectiveSession(t);
   const sessBadge=effSess&&effSess!=='unset'?`<span class="sess-badge sess-${effSess}">${{lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',both:'↕ Both'}[effSess]||''}</span>`:'';
-  return`<div class="task-card${isDone?' done':''}">
+  return`<div class="task-card${isDone?' done':''}" data-id="${t.id}">
     <div class="task-row" onclick="toggleTask('${t.id}')">
       <div class="tick${isDone?' on':''}"><svg width="14" height="14" viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="task-info">
         <div class="task-name">${t.name}</div>
         <span class="task-badge cat-${t.cat||'extra'}">${CAT_LABELS[t.cat]||t.cat||'Extra'}</span>${sessBadge}
-      </div>${infoBtn}${menuBtn}
+      </div>${infoBtn}${menuBtn}${removeBtn}
     </div>${note}</div>`;
 }
 
@@ -841,8 +863,9 @@ function saveExtras(){
   _saveExtrasTimer=setTimeout(async()=>{
     const sentinel={id:'__picked__',name:JSON.stringify(state.pickedExtras),cat:'',note:''};
     const sessSentinel={id:'__session_overrides__',name:JSON.stringify(state.sessionOverrides),cat:'',note:''};
+    const hiddenSentinel={id:'__hidden__',name:JSON.stringify(state.hiddenToday),cat:'',note:''};
     const free=state.freeExtras.map(e=>({...e}));
-    try{await apiPost({action:'setExtras',date:todayKey(),extras:[sentinel,sessSentinel,...free]})}
+    try{await apiPost({action:'setExtras',date:todayKey(),extras:[sentinel,sessSentinel,hiddenSentinel,...free]})}
     catch(e){console.error('saveExtras failed:',e)}
     finally{
       _saveExtrasPending=false;
@@ -878,14 +901,26 @@ async function loadLog(){
 function renderLog(entries){
   if(!entries.length){document.getElementById('log-content').innerHTML='<div class="empty">No log entries yet.<br>Completed tasks appear here automatically.</div>';return}
   let html='';
+  // Deduplicate by date — keep the entry with the most tasks done
+  const byDate={};
   entries.forEach(entry=>{
-    const p=entry.date.split('-');
-    const d=new Date(parseInt(p[0]),parseInt(p[1])-1,parseInt(p[2]));
+    const key=entry.date;
+    if(!byDate[key]||entry.done.length>byDate[key].done.length)byDate[key]=entry;
+  });
+  const deduped=Object.values(byDate).sort((a,b)=>b.date.localeCompare(a.date));
+  deduped.forEach(entry=>{
+    // Parse date robustly — handles YYYY-M-D and YYYY-MM-DD
+    let d;
+    const p=String(entry.date).match(/(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if(p){d=new Date(parseInt(p[1]),parseInt(p[2])-1,parseInt(p[3]));}
+    else{d=new Date(entry.date);}
+    const isValid=d instanceof Date&&!isNaN(d);
+    const dateLabel=isValid?`${SDAYS[d.getDay()]} ${d.getDate()} ${SMONTHS[d.getMonth()]} ${d.getFullYear()}`:entry.date;
     const pct=entry.total?Math.round(entry.done.length/entry.total*100):0;
     const tags=entry.done.slice(0,5).map(n=>`<span class="log-tag">${n}</span>`).join('');
     const more=entry.done.length>5?`<span class="log-tag">+${entry.done.length-5} more</span>`:'';
     html+=`<div class="log-card">
-      <div class="log-datestr">${SDAYS[d.getDay()]} ${d.getDate()} ${SMONTHS[d.getMonth()]} ${d.getFullYear()}</div>
+      <div class="log-datestr">${dateLabel}</div>
       <div class="log-summary">${entry.done.length} of ${entry.total} tasks done — ${pct}%</div>
       <div class="log-prog"><div class="log-prog-fill" style="width:${pct}%"></div></div>
       <div class="log-tags">${tags}${more}</div>
@@ -967,24 +1002,28 @@ async function renderAdminContent(){
     if(!groups[cat])return;
     listHtml+=`<div class="sec-label" style="padding-left:0;padding-top:8px">${CAT_LABELS[cat]||cat}</div>`;
     groups[cat].forEach(t=>{
-      const sessLabels={lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',both:'↕ Both',unset:''};
-      const sessBadgeHtml=t.session&&t.session!=='unset'?`<span class="task-badge sess-badge sess-${t.session}" style="margin-left:0;margin-top:3px">${sessLabels[t.session]}</span>`:'';
-      const descPreview=t.desc?`<div style="font-size:11px;color:var(--text3);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px">${t.desc}</div>`:'';
+      const sessLabels={lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',both:'↕ Both',unset:'No session'};
+      const sessBadgeHtml=t.session&&t.session!=='unset'?`<span class="task-badge sess-badge sess-${t.session}" style="margin-left:0;margin-top:4px;display:inline-block">${sessLabels[t.session]}</span>`:'';
+      const descPreview=t.desc?`<div style="font-size:11px;color:var(--pebble);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.desc}</div>`:'';
       listHtml+=`<div class="master-item${t.active?'':' inactive'}">
-        <div class="master-item-info" style="flex:1;min-width:0">
+        <div class="master-item-info">
           <div class="master-item-name">${t.name}</div>
           <div class="master-freq">${FREQ_LABELS[t.freq]||t.freq}</div>
-          ${sessBadgeHtml}${descPreview}
+          <div style="margin-top:6px">
+            <select class="sess-select" onchange="updateTaskSession('${t.id}',this.value)" title="Assign session">
+              <option value="unset"${(!t.session||t.session==='unset')?' selected':''}>No session</option>
+              <option value="lunchtime"${t.session==='lunchtime'?' selected':''}>🕛 Lunchtime</option>
+              <option value="afternoon"${t.session==='afternoon'?' selected':''}>🌤 Afternoon</option>
+              <option value="both"${t.session==='both'?' selected':''}>↕ Both</option>
+            </select>
+          </div>
+          ${descPreview}
         </div>
-        <select class="sess-select" onchange="updateTaskSession('${t.id}',this.value)" title="Assign session">
-          <option value="unset"${(!t.session||t.session==='unset')?' selected':''}>Session</option>
-          <option value="lunchtime"${t.session==='lunchtime'?' selected':''}>🕛 Lunchtime</option>
-          <option value="afternoon"${t.session==='afternoon'?' selected':''}>🌤 Afternoon</option>
-          <option value="both"${t.session==='both'?' selected':''}>↕ Both</option>
-        </select>
-        <button class="tog-btn" style="padding:4px 8px;font-size:11px" onclick="openDescEdit('${t.id}')" title="Edit notes">📝</button>
-        <button class="tog-btn${t.active?' on':''}" onclick="toggleActive('${t.id}')">${t.active?'On':'Off'}</button>
-        <button class="del-btn" onclick="deleteTask('${t.id}')">×</button>
+        <div class="master-item-controls">
+          <button class="tog-btn" style="padding:4px 8px;font-size:13px" onclick="openDescEdit('${t.id}')" title="Edit notes">📝</button>
+          <button class="tog-btn${t.active?' on':''}" onclick="toggleActive('${t.id}')">${t.active?'On':'Off'}</button>
+          <button class="del-btn" onclick="deleteTask('${t.id}')">×</button>
+        </div>
       </div>`;
     });
   });
@@ -1107,7 +1146,7 @@ async function resetToday(){
   if(!confirm('Reset all ticks and picked tasks for today?'))return;
   try{
     await Promise.all([apiPost({action:'setChecked',date:todayKey(),ids:[]}),apiPost({action:'setExtras',date:todayKey(),extras:[]})]);
-    state.checked=[];state.pickedExtras=[];state.freeExtras=[];state.sessionOverrides={};
+    state.checked=[];state.pickedExtras=[];state.freeExtras=[];state.sessionOverrides={};state.hiddenToday=[];
     alert('Today reset.');
   }catch(e){alert('Error: '+e.message)}
 }
@@ -1213,7 +1252,8 @@ function printToday(){
   </body></html>`;
 
   const w=window.open('','_blank','width=800,height=900');
-  markWritten(); // keeps grace period active while user is in print dialog
+  markWritten();
+  _printWindowOpen=true; // flag to prevent re-lock on return
   if(!w){alert('Please allow popups for this site to enable printing.');return}
   w.document.write(html);
   w.document.close();
@@ -1339,9 +1379,13 @@ function checkLockPin(){
   }
 }
 
+let _printWindowOpen=false;
+
 // Re-lock whenever the user leaves the app
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='hidden'){
+    // Don't re-lock if we just opened the print popup
+    if(_printWindowOpen){_printWindowOpen=false;return;}
     appUnlocked=false;
     lockBuffer='';
     const ls=document.getElementById('lock-screen');

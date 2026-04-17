@@ -94,6 +94,7 @@ html,body{height:100%;overflow:hidden;background:var(--parchment);font-family:'D
 .task-card.done .task-note{display:none}
 .task-card.done .info-btn{display:none}
 .task-card.done .remove-btn{display:none}
+.task-card.done .drag-handle{display:none}
 .task-card.done .tick{width:22px;height:22px;border-width:1.5px}
 .easy-mode .task-card.done .task-name{font-size:15px}
 .task-row{display:flex;align-items:center;gap:14px;padding:var(--task-pad) 14px var(--task-pad) 16px;cursor:pointer;user-select:none}
@@ -116,10 +117,10 @@ html,body{height:100%;overflow:hidden;background:var(--parchment);font-family:'D
 .cat-extra{background:var(--linen);color:var(--driftwood)}
 .cat-evening{background:#F0EEFF;color:#3C3489}
 /* drag handle */
-.drag-handle{color:var(--linen);cursor:grab;padding:6px 4px;font-size:18px;line-height:1;flex-shrink:0;user-select:none;-webkit-user-select:none;touch-action:none}
+.drag-handle{color:var(--linen);cursor:grab;padding:6px 2px 6px 0;font-size:16px;line-height:1;flex-shrink:0;user-select:none;-webkit-user-select:none;touch-action:none;min-width:20px;text-align:center}
 .drag-handle:active{cursor:grabbing;color:var(--pebble)}
 .task-card.dragging{opacity:.4;border:1.5px dashed var(--forest)}
-.task-card.drag-over{border-top:2.5px solid var(--forest)}
+.task-card.drag-over{border-top:3px solid var(--forest)}
 .task-note{font-size:13px;color:var(--driftwood);padding:0 16px 14px 60px;line-height:1.5}
 .easy-mode .task-note{font-size:17px;padding-left:76px}
 /* remove button on task card */
@@ -723,7 +724,7 @@ function hideTaskToday(id){
 }
 
 function initSwipe(){
-  // X button handles removal — no swipe needed
+  initTodayDrag();
 }
 
 function taskCardHtml(t,isExtra=false){
@@ -737,6 +738,7 @@ function taskCardHtml(t,isExtra=false){
   const sessBadge=effSess&&effSess!=='unset'?`<span class="sess-badge sess-${effSess}">${{lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',evening:'🌙 Evening',both:'↕ Both'}[effSess]||''}</span>`:'';
   return`<div class="task-card${isDone?' done':''}" data-id="${t.id}">
     <div class="task-row" onclick="toggleTask('${t.id}')">
+      <div class="drag-handle" title="Hold to reorder">⠿</div>
       <div class="tick${isDone?' on':''}"><svg width="14" height="14" viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="task-info">
         <div class="task-name">${t.name}</div>
@@ -982,8 +984,7 @@ async function renderAdminContent(){
     groups[cat].forEach(t=>{
       const sessLabels={lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',evening:'🌙 Evening',both:'↕ Both',unset:'No session'};
       const descPreview=t.desc?`<div style="font-size:11px;color:var(--pebble);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.desc}</div>`:'';
-      listHtml+=`<div class="master-item${t.active?'':' inactive'}" data-id="${t.id}" draggable="true">
-        <div class="drag-handle" title="Hold to reorder">⠿</div>
+      listHtml+=`<div class="master-item${t.active?'':' inactive'}" data-id="${t.id}">
         <div class="master-item-info">
           <div class="master-item-name">${t.name}</div>
           <div class="master-freq">${FREQ_LABELS[t.freq]||t.freq}</div>
@@ -1059,81 +1060,81 @@ async function renderAdminContent(){
   initAdminDrag();
 }
 
-// ── DRAG TO REORDER ───────────────────────────────────────────
-let _dragId=null,_dragEl=null,_touchY=0;
+// ── DRAG TO REORDER (Today view, touch-first for iOS) ─────────
+let _drag={id:null,el:null,ghost:null,startY:0,lastTarget:null};
 
-function initAdminDrag(){
-  const items=document.querySelectorAll('.master-item[data-id]');
-  items.forEach(el=>{
-    // Desktop drag events
-    el.addEventListener('dragstart',e=>{
-      _dragId=el.dataset.id;
-      _dragEl=el;
-      setTimeout(()=>el.classList.add('dragging'),0);
-    });
-    el.addEventListener('dragend',()=>{
-      el.classList.remove('dragging');
-      document.querySelectorAll('.master-item').forEach(e=>e.classList.remove('drag-over'));
-      _dragEl=null;_dragId=null;
-    });
-    el.addEventListener('dragover',e=>{
-      e.preventDefault();
-      if(_dragEl&&el!==_dragEl){
-        document.querySelectorAll('.master-item').forEach(e=>e.classList.remove('drag-over'));
-        el.classList.add('drag-over');
-      }
-    });
-    el.addEventListener('drop',e=>{
-      e.preventDefault();
-      if(_dragId&&el.dataset.id&&_dragId!==el.dataset.id){
-        reorderTask(_dragId,el.dataset.id);
-      }
-    });
-
-    // Touch events for iOS
+function initTodayDrag(){
+  document.querySelectorAll('#today-inner .task-card[data-id]').forEach(el=>{
     const handle=el.querySelector('.drag-handle');
     if(!handle)return;
+
     handle.addEventListener('touchstart',e=>{
-      _dragId=el.dataset.id;_dragEl=el;
-      _touchY=e.touches[0].clientY;
-      el.style.opacity='0.5';
+      e.stopPropagation();
+      const t=e.touches[0];
+      _drag.id=el.dataset.id;
+      _drag.el=el;
+      _drag.startY=t.clientY;
+
+      // Create a ghost clone that follows the finger
+      const ghost=el.cloneNode(true);
+      ghost.style.cssText=`position:fixed;left:${el.getBoundingClientRect().left}px;top:${el.getBoundingClientRect().top}px;width:${el.offsetWidth}px;opacity:0.85;z-index:500;pointer-events:none;border-radius:var(--card-radius);box-shadow:0 8px 24px rgba(0,0,0,.18);transition:none`;
+      document.body.appendChild(ghost);
+      _drag.ghost=ghost;
+      el.style.opacity='0.3';
     },{passive:true});
+
     handle.addEventListener('touchmove',e=>{
+      if(!_drag.el)return;
       e.preventDefault();
-      const y=e.touches[0].clientY;
-      const target=document.elementFromPoint(e.touches[0].clientX,y);
-      const targetItem=target?.closest('.master-item[data-id]');
-      document.querySelectorAll('.master-item').forEach(e=>e.classList.remove('drag-over'));
-      if(targetItem&&targetItem!==_dragEl)targetItem.classList.add('drag-over');
-    },{passive:false});
-    handle.addEventListener('touchend',e=>{
-      el.style.opacity='';
-      const touch=e.changedTouches[0];
-      const target=document.elementFromPoint(touch.clientX,touch.clientY);
-      const targetItem=target?.closest('.master-item[data-id]');
-      document.querySelectorAll('.master-item').forEach(e=>e.classList.remove('drag-over'));
-      if(targetItem&&targetItem!==_dragEl&&_dragId){
-        reorderTask(_dragId,targetItem.dataset.id);
+      const t=e.touches[0];
+      const dy=t.clientY-_drag.startY;
+
+      // Move ghost
+      const rect=_drag.el.getBoundingClientRect();
+      _drag.ghost.style.top=(rect.top+dy)+'px';
+
+      // Find which card we're hovering over
+      _drag.ghost.style.display='none';
+      const target=document.elementFromPoint(t.clientX,t.clientY);
+      _drag.ghost.style.display='';
+      const targetCard=target?.closest('#today-inner .task-card[data-id]');
+
+      // Update drop indicator
+      document.querySelectorAll('#today-inner .task-card').forEach(c=>c.classList.remove('drag-over'));
+      if(targetCard&&targetCard!==_drag.el){
+        targetCard.classList.add('drag-over');
+        _drag.lastTarget=targetCard.dataset.id;
+      } else {
+        _drag.lastTarget=null;
       }
-      _dragId=null;_dragEl=null;
+    },{passive:false});
+
+    handle.addEventListener('touchend',e=>{
+      if(!_drag.el)return;
+      // Clean up
+      if(_drag.ghost)_drag.ghost.remove();
+      _drag.el.style.opacity='';
+      document.querySelectorAll('#today-inner .task-card').forEach(c=>c.classList.remove('drag-over'));
+
+      // Reorder if we have a valid target
+      if(_drag.lastTarget&&_drag.lastTarget!==_drag.id){
+        reorderTask(_drag.id,_drag.lastTarget);
+      }
+      _drag.id=null;_drag.el=null;_drag.ghost=null;_drag.lastTarget=null;
     });
   });
 }
 
 async function reorderTask(fromId,toId){
-  // Find positions in the full task list
   const sorted=[...state.tasks].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
   const fromIdx=sorted.findIndex(t=>t.id===fromId);
   const toIdx=sorted.findIndex(t=>t.id===toId);
   if(fromIdx===-1||toIdx===-1)return;
-  // Move the task
   const [moved]=sorted.splice(fromIdx,1);
   sorted.splice(toIdx,0,moved);
-  // Assign new sortOrder values
   sorted.forEach((t,i)=>t.sortOrder=i);
   state.tasks=sorted;
-  renderAdminContent();
-  // Save to Sheets
+  renderToday();
   try{
     await apiPost({action:'reorderTasks',order:sorted.map(t=>t.id)});
   }catch(e){console.error('reorder save failed:',e)}

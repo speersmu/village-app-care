@@ -1061,68 +1061,102 @@ async function renderAdminContent(){
 }
 
 // ── DRAG TO REORDER (Today view, touch-first for iOS) ─────────
-let _drag={id:null,el:null,ghost:null,startY:0,lastTarget:null};
+let _drag={id:null,el:null,ghost:null,offsetY:0,lastTarget:null};
 
 function initTodayDrag(){
   document.querySelectorAll('#today-inner .task-card[data-id]').forEach(el=>{
     const handle=el.querySelector('.drag-handle');
     if(!handle)return;
 
+    // ── TOUCH (iOS/Android) ──────────────────────────────
     handle.addEventListener('touchstart',e=>{
-      e.stopPropagation();
+      e.preventDefault(); // must preventDefault to block scroll
       const t=e.touches[0];
-      _drag.id=el.dataset.id;
-      _drag.el=el;
-      _drag.startY=t.clientY;
-
-      // Create a ghost clone that follows the finger
-      const ghost=el.cloneNode(true);
-      ghost.style.cssText=`position:fixed;left:${el.getBoundingClientRect().left}px;top:${el.getBoundingClientRect().top}px;width:${el.offsetWidth}px;opacity:0.85;z-index:500;pointer-events:none;border-radius:var(--card-radius);box-shadow:0 8px 24px rgba(0,0,0,.18);transition:none`;
-      document.body.appendChild(ghost);
-      _drag.ghost=ghost;
-      el.style.opacity='0.3';
-    },{passive:true});
+      _startDrag(el, t.clientX, t.clientY);
+    },{passive:false});
 
     handle.addEventListener('touchmove',e=>{
       if(!_drag.el)return;
       e.preventDefault();
       const t=e.touches[0];
-      const dy=t.clientY-_drag.startY;
-
-      // Move ghost
-      const rect=_drag.el.getBoundingClientRect();
-      _drag.ghost.style.top=(rect.top+dy)+'px';
-
-      // Find which card we're hovering over
-      _drag.ghost.style.display='none';
-      const target=document.elementFromPoint(t.clientX,t.clientY);
-      _drag.ghost.style.display='';
-      const targetCard=target?.closest('#today-inner .task-card[data-id]');
-
-      // Update drop indicator
-      document.querySelectorAll('#today-inner .task-card').forEach(c=>c.classList.remove('drag-over'));
-      if(targetCard&&targetCard!==_drag.el){
-        targetCard.classList.add('drag-over');
-        _drag.lastTarget=targetCard.dataset.id;
-      } else {
-        _drag.lastTarget=null;
-      }
+      _moveDrag(t.clientX, t.clientY);
     },{passive:false});
 
     handle.addEventListener('touchend',e=>{
       if(!_drag.el)return;
-      // Clean up
-      if(_drag.ghost)_drag.ghost.remove();
-      _drag.el.style.opacity='';
-      document.querySelectorAll('#today-inner .task-card').forEach(c=>c.classList.remove('drag-over'));
+      e.preventDefault();
+      _endDrag();
+    },{passive:false});
 
-      // Reorder if we have a valid target
-      if(_drag.lastTarget&&_drag.lastTarget!==_drag.id){
-        reorderTask(_drag.id,_drag.lastTarget);
-      }
-      _drag.id=null;_drag.el=null;_drag.ghost=null;_drag.lastTarget=null;
+    // ── MOUSE (desktop Chrome/Safari) ───────────────────
+    handle.addEventListener('mousedown',e=>{
+      e.preventDefault();
+      _startDrag(el, e.clientX, e.clientY);
+
+      const onMove=ev=>_moveDrag(ev.clientX, ev.clientY);
+      const onUp=()=>{
+        _endDrag();
+        window.removeEventListener('mousemove',onMove);
+        window.removeEventListener('mouseup',onUp);
+      };
+      window.addEventListener('mousemove',onMove);
+      window.addEventListener('mouseup',onUp);
     });
   });
+}
+
+function _startDrag(el, clientX, clientY){
+  _drag.id=el.dataset.id;
+  _drag.el=el;
+  _drag.lastTarget=null;
+
+  // Offset from top of card to finger/cursor so ghost doesn't jump
+  const rect=el.getBoundingClientRect();
+  _drag.offsetY=clientY-rect.top;
+
+  // Ghost clone
+  const ghost=el.cloneNode(true);
+  ghost.style.cssText=`position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;opacity:0.85;z-index:500;pointer-events:none;border-radius:22px;box-shadow:0 8px 28px rgba(0,0,0,.2);transition:none;background:#fff`;
+  document.body.appendChild(ghost);
+  _drag.ghost=ghost;
+  el.style.opacity='0.25';
+}
+
+function _moveDrag(clientX, clientY){
+  if(!_drag.ghost)return;
+
+  // Move ghost to follow finger/cursor
+  _drag.ghost.style.top=(clientY-_drag.offsetY)+'px';
+
+  // Find target card under the pointer (hide ghost first so it doesn't intercept)
+  _drag.ghost.style.visibility='hidden';
+  const target=document.elementFromPoint(clientX, clientY);
+  _drag.ghost.style.visibility='visible';
+
+  const targetCard=target?.closest('#today-inner .task-card[data-id]');
+  document.querySelectorAll('#today-inner .task-card').forEach(c=>c.classList.remove('drag-over'));
+
+  if(targetCard && targetCard!==_drag.el){
+    targetCard.classList.add('drag-over');
+    _drag.lastTarget=targetCard.dataset.id;
+  } else if(!targetCard){
+    _drag.lastTarget=null;
+  }
+  // If targetCard===_drag.el, keep lastTarget as-is so brief overlap doesn't cancel it
+}
+
+function _endDrag(){
+  if(_drag.ghost)_drag.ghost.remove();
+  if(_drag.el)_drag.el.style.opacity='';
+  document.querySelectorAll('#today-inner .task-card').forEach(c=>c.classList.remove('drag-over'));
+
+  const fromId=_drag.id;
+  const toId=_drag.lastTarget;
+  _drag={id:null,el:null,ghost:null,offsetY:0,lastTarget:null};
+
+  if(toId && toId!==fromId){
+    reorderTask(fromId, toId);
+  }
 }
 
 async function reorderTask(fromId,toId){

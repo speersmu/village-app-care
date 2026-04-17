@@ -93,7 +93,7 @@ html,body{height:100%;overflow:hidden;background:var(--parchment);font-family:'D
 .task-card.done .sess-badge{display:none}
 .task-card.done .task-note{display:none}
 .task-card.done .info-btn{display:none}
-.task-card.done .menu-btn{display:none}
+.task-card.done .remove-btn{display:none}
 .task-card.done .tick{width:22px;height:22px;border-width:1.5px}
 .easy-mode .task-card.done .task-name{font-size:15px}
 .task-row{display:flex;align-items:center;gap:14px;padding:var(--task-pad) 14px var(--task-pad) 16px;cursor:pointer;user-select:none}
@@ -114,11 +114,15 @@ html,body{height:100%;overflow:hidden;background:var(--parchment);font-family:'D
 .cat-errands{background:#F3EFF9;color:#4A1554}
 .cat-christmas{background:#FFF8E7;color:#7B341E}
 .cat-extra{background:var(--linen);color:var(--driftwood)}
+.cat-evening{background:#F0EEFF;color:#3C3489}
+/* drag handle */
+.drag-handle{color:var(--linen);cursor:grab;padding:6px 4px;font-size:18px;line-height:1;flex-shrink:0;user-select:none;-webkit-user-select:none;touch-action:none}
+.drag-handle:active{cursor:grabbing;color:var(--pebble)}
+.task-card.dragging{opacity:.4;border:1.5px dashed var(--forest)}
+.task-card.drag-over{border-top:2.5px solid var(--forest)}
 .task-note{font-size:13px;color:var(--driftwood);padding:0 16px 14px 60px;line-height:1.5}
 .easy-mode .task-note{font-size:17px;padding-left:76px}
-.menu-btn{background:none;border:none;color:var(--pebble);cursor:pointer;padding:6px;font-size:22px;line-height:1;flex-shrink:0}
-
-/* pick screen */
+/* remove button on task card */
 .pick-header{background:var(--white);border-bottom:1px solid var(--linen);padding:14px 16px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;position:sticky;top:0;z-index:10}
 .pick-header-title{font-size:17px;font-weight:700;color:var(--stone)}
 .pick-header-sub{font-size:13px;color:var(--driftwood);margin-top:2px}
@@ -153,6 +157,7 @@ html,body{height:100%;overflow:hidden;background:var(--parchment);font-family:'D
 .modal-session-pill{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:20px;font-size:13px;font-weight:600}
 .sess-lunchtime{background:#FFF8E7;color:#7B4A0A}
 .sess-afternoon{background:#EEF4FF;color:#1A3A7C}
+.sess-evening{background:#F0EEFF;color:#3C3489}
 .sess-both{background:var(--mist);color:var(--deep-forest)}
 .sess-unset{background:var(--linen);color:var(--pebble)}
 .modal-close{width:100%;padding:15px;border:none;background:var(--forest);border-radius:14px;font-size:15px;color:#fff;cursor:pointer;font-family:inherit;margin-top:16px;font-weight:600}
@@ -245,13 +250,7 @@ input:focus,select:focus{border-color:var(--forest);box-shadow:0 0 0 3px rgba(45
 .nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:10px 0;border:none;background:none;cursor:pointer;gap:3px;color:var(--pebble);font-size:11px;font-weight:600;font-family:inherit;letter-spacing:.02em}
 .nav-btn.active{color:var(--forest)}
 .nav-btn svg{width:22px;height:22px}
-.sheet-bg{display:none;position:fixed;inset:0;background:rgba(28,25,23,.6);z-index:200;align-items:flex-end;justify-content:center}
-.sheet-bg.open{display:flex}
-.sheet{background:var(--white);border-radius:24px 24px 0 0;padding:22px 20px calc(22px + var(--safe-bot));width:100%;max-width:430px}
-.sheet-title{font-size:16px;font-weight:600;color:var(--stone);margin-bottom:14px;line-height:1.4}
-.sheet-opt{width:100%;padding:15px 16px;border:1px solid var(--linen);border-radius:14px;background:var(--parchment);text-align:left;font-size:15px;cursor:pointer;margin-bottom:8px;font-family:inherit;color:var(--stone);font-weight:500}
-.sheet-opt.red{color:var(--ember);background:var(--warm-white);border-color:#F4C5A8}
-.sheet-cancel{width:100%;padding:15px;border:none;background:none;font-size:15px;color:var(--pebble);cursor:pointer;font-family:inherit}
+/* lock screen */
 </style>
 </head>
 <body>
@@ -398,12 +397,6 @@ input:focus,select:focus{border-color:var(--forest);box-shadow:0 0 0 3px rgba(45
 }
 .lk-btn:active{background:#333330}
 </style>
-  <div class="sheet">
-    <div class="sheet-title" id="sheet-title"></div>
-    <button class="sheet-opt red" id="sheet-remove" onclick="sheetRemove()">Remove from today</button>
-    <button class="sheet-cancel" onclick="closeSheet()">Cancel</button>
-  </div>
-</div>
 
 <div class="modal-bg" id="info-modal-bg">
   <div class="modal" id="info-modal-content"></div>
@@ -414,8 +407,8 @@ const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturda
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 const SMONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const SDAYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const CAT_LABELS={personal:'Personal care',nursery:'Nursery / boys room',kitchen:'Kitchen / food',medical:'Medical',home:'Home / cleaning',garden:'Garden / outdoors',admin:'Admin / paperwork',errands:'Errands / outings',christmas:'Christmas',extra:'Extra'};
-const CAT_ORDER=['medical','personal','nursery','kitchen','home','garden','admin','errands','christmas','extra'];
+const CAT_LABELS={personal:'Personal care',nursery:'Nursery / boys room',kitchen:'Kitchen / food',medical:'Medical',home:'Home / cleaning',garden:'Garden / outdoors',admin:'Admin / paperwork',errands:'Errands / outings',christmas:'Christmas',evening:'Evening',extra:'Extra'};
+const CAT_ORDER=['medical','personal','nursery','kitchen','home','garden','admin','errands','christmas','evening','extra'];
 const FREQ_LABELS={daily:'Every day',weekdays:'Weekdays','mon-wed-fri':'Mon/Wed/Fri','tue-thu':'Tue/Thu','weekly-mon':'Weekly (Mon)','weekly-wed':'Weekly (Wed)','weekly-fri':'Weekly (Fri)','as-needed':'As needed'};
 
 function todayKey(){
@@ -426,7 +419,7 @@ function todayKey(){
 }
 function ls(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch{return d}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
-const HARDCODED_API_URL='https://script.google.com/macros/s/AKfycbx9IQJq9WjibpZLFfmjPTQoY0utUbN9lB66_3RRAr4vZtIrnZeu8T8xSHW9pc7Jpa85Rw/exec';
+const HARDCODED_API_URL='https://script.google.com/macros/s/AKfycbyivyLeGx4KxCAb2gygYBCuTYE3Q8yrdVVLo1vIfylXJT4vt_6sKxhpqZkCknKdcuyTlQ/exec';
 // Clear any previously cached URL so the new deployment is always used
 if(ls('api_url','')!==HARDCODED_API_URL)lsSet('api_url','');
 function getApiUrl(){return HARDCODED_API_URL}
@@ -454,7 +447,7 @@ async function apiPost(body){
 }
 
 let state={tasks:[],checked:[],pickedExtras:[],freeExtras:[],sessionOverrides:{},hiddenToday:[],settings:{}};
-let sheetId=null,sheetIsExtra=false,pinBuffer='';
+let pinBuffer='';
 
 function isScheduledToday(freq){
   const d=new Date().getDay();
@@ -655,7 +648,8 @@ function renderToday(){
   const now=new Date();
   const dateStr=DAYS[now.getDay()]+', '+now.getDate()+' '+MONTHS[now.getMonth()];
   const xmasOn=state.settings.christmasMode==='true';
-  const active=state.tasks.filter(t=>t.active&&(t.cat!=='christmas'||xmasOn));
+  const active=state.tasks.filter(t=>t.active&&(t.cat!=='christmas'||xmasOn))
+    .sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
   const dailyTasks=active.filter(t=>isScheduledToday(t.freq)&&t.freq!=='as-needed');
   const pickedTasks=getPickedTaskObjects();
   const allToday=[...dailyTasks,...pickedTasks,...state.freeExtras];
@@ -683,6 +677,7 @@ function renderToday(){
   // Group ALL today's tasks by effective session
   const lunchtime=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='lunchtime'||s==='both'});
   const afternoon=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='afternoon'||s==='both'});
+  const evening=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='evening'||s==='both'});
   const unassigned=allToday.filter(t=>{const s=getEffectiveSession(t);return !s||s==='unset'});
 
   function sessionSection(label,emoji,colour,tasks){
@@ -697,6 +692,7 @@ function renderToday(){
 
   html+=sessionSection('Lunchtime','🕛','var(--driftwood)',lunchtime);
   html+=sessionSection('Afternoon','🌤','var(--driftwood)',afternoon);
+  html+=sessionSection('Evening','🌙','var(--driftwood)',evening);
   if(unassigned.length){
     html+=sessionSection('Unassigned','📋','var(--pebble)',unassigned);
   }
@@ -735,20 +731,17 @@ function taskCardHtml(t,isExtra=false){
   const isHidden=state.hiddenToday.includes(String(t.id));
   if(isHidden)return''; // hidden for today
   const note=t.note?`<div class="task-note">${t.note}</div>`:'';
-  const menuBtn=isExtra
-    ?`<button class="menu-btn" onclick="event.stopPropagation();openSheet('${t.id}','${t.name.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">&#8943;</button>`
-    :'';
   const infoBtn=`<button class="info-btn" onclick="event.stopPropagation();openInfoModal('${t.id}')" title="More info">ⓘ</button>`;
   const removeBtn=`<button class="remove-btn" onclick="event.stopPropagation();hideTaskToday('${t.id}')" title="Hide today">×</button>`;
   const effSess=getEffectiveSession(t);
-  const sessBadge=effSess&&effSess!=='unset'?`<span class="sess-badge sess-${effSess}">${{lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',both:'↕ Both'}[effSess]||''}</span>`:'';
+  const sessBadge=effSess&&effSess!=='unset'?`<span class="sess-badge sess-${effSess}">${{lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',evening:'🌙 Evening',both:'↕ Both'}[effSess]||''}</span>`:'';
   return`<div class="task-card${isDone?' done':''}" data-id="${t.id}">
     <div class="task-row" onclick="toggleTask('${t.id}')">
       <div class="tick${isDone?' on':''}"><svg width="14" height="14" viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="task-info">
         <div class="task-name">${t.name}</div>
         <span class="task-badge cat-${t.cat||'extra'}">${CAT_LABELS[t.cat]||t.cat||'Extra'}</span>${sessBadge}
-      </div>${infoBtn}${menuBtn}${removeBtn}
+      </div>${infoBtn}${removeBtn}
     </div>${note}</div>`;
 }
 
@@ -875,23 +868,6 @@ function saveExtras(){
 }
 
 // ── SHEET (remove extra from today) ───────────────────────────
-function openSheet(id,name){
-  sheetId=id;
-  document.getElementById('sheet-title').textContent=name;
-  document.getElementById('sheet-bg').classList.add('open');
-}
-function closeSheet(){document.getElementById('sheet-bg').classList.remove('open')}
-function sheetRemove(){
-  const isPicked=state.pickedExtras.includes(sheetId);
-  if(isPicked){state.pickedExtras=state.pickedExtras.filter(id=>id!==sheetId);}
-  else{state.freeExtras=state.freeExtras.filter(e=>e.id!==sheetId);}
-  closeSheet();
-  renderToday();         // instant
-  saveExtras();          // background
-}
-const _sheetBg=document.getElementById('sheet-bg');
-if(_sheetBg)_sheetBg.addEventListener('click',e=>{if(e.target===e.currentTarget)closeSheet()});
-
 // ── LOG ───────────────────────────────────────────────────────
 async function loadLog(){
   document.getElementById('log-content').innerHTML=loading();
@@ -996,16 +972,18 @@ async function renderAdminContent(){
   }catch(e){document.getElementById('admin-inner').innerHTML=`<div class="err-banner">Could not load. ${e.message}</div>`;return}
   const xmasOn=state.settings.christmasMode==='true';
   const groups={};
-  state.tasks.forEach(t=>(groups[t.cat]=groups[t.cat]||[]).push(t));
+  // Sort tasks by sortOrder field, then build category groups
+  const sorted=[...state.tasks].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+  sorted.forEach(t=>(groups[t.cat]=groups[t.cat]||[]).push(t));
   let listHtml='';
   CAT_ORDER.forEach(cat=>{
     if(!groups[cat])return;
     listHtml+=`<div class="sec-label" style="padding-left:0;padding-top:8px">${CAT_LABELS[cat]||cat}</div>`;
     groups[cat].forEach(t=>{
-      const sessLabels={lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',both:'↕ Both',unset:'No session'};
-      const sessBadgeHtml=t.session&&t.session!=='unset'?`<span class="task-badge sess-badge sess-${t.session}" style="margin-left:0;margin-top:4px;display:inline-block">${sessLabels[t.session]}</span>`:'';
+      const sessLabels={lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',evening:'🌙 Evening',both:'↕ Both',unset:'No session'};
       const descPreview=t.desc?`<div style="font-size:11px;color:var(--pebble);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.desc}</div>`:'';
-      listHtml+=`<div class="master-item${t.active?'':' inactive'}">
+      listHtml+=`<div class="master-item${t.active?'':' inactive'}" data-id="${t.id}" draggable="true">
+        <div class="drag-handle" title="Hold to reorder">⠿</div>
         <div class="master-item-info">
           <div class="master-item-name">${t.name}</div>
           <div class="master-freq">${FREQ_LABELS[t.freq]||t.freq}</div>
@@ -1014,6 +992,7 @@ async function renderAdminContent(){
               <option value="unset"${(!t.session||t.session==='unset')?' selected':''}>No session</option>
               <option value="lunchtime"${t.session==='lunchtime'?' selected':''}>🕛 Lunchtime</option>
               <option value="afternoon"${t.session==='afternoon'?' selected':''}>🌤 Afternoon</option>
+              <option value="evening"${t.session==='evening'?' selected':''}>🌙 Evening</option>
               <option value="both"${t.session==='both'?' selected':''}>↕ Both</option>
             </select>
           </div>
@@ -1050,6 +1029,7 @@ async function renderAdminContent(){
           <option value="garden">Garden / outdoors</option>
           <option value="admin">Admin / paperwork</option>
           <option value="errands">Errands / outings</option>
+          <option value="evening">Evening</option>
           <option value="christmas">Christmas</option>
         </select>
         <select id="new-freq">
@@ -1076,6 +1056,87 @@ async function renderAdminContent(){
     </div>
     <div class="card"><button class="btn btn-danger" onclick="resetToday()">Reset today's checklist</button></div>
   </div>`;
+  initAdminDrag();
+}
+
+// ── DRAG TO REORDER ───────────────────────────────────────────
+let _dragId=null,_dragEl=null,_touchY=0;
+
+function initAdminDrag(){
+  const items=document.querySelectorAll('.master-item[data-id]');
+  items.forEach(el=>{
+    // Desktop drag events
+    el.addEventListener('dragstart',e=>{
+      _dragId=el.dataset.id;
+      _dragEl=el;
+      setTimeout(()=>el.classList.add('dragging'),0);
+    });
+    el.addEventListener('dragend',()=>{
+      el.classList.remove('dragging');
+      document.querySelectorAll('.master-item').forEach(e=>e.classList.remove('drag-over'));
+      _dragEl=null;_dragId=null;
+    });
+    el.addEventListener('dragover',e=>{
+      e.preventDefault();
+      if(_dragEl&&el!==_dragEl){
+        document.querySelectorAll('.master-item').forEach(e=>e.classList.remove('drag-over'));
+        el.classList.add('drag-over');
+      }
+    });
+    el.addEventListener('drop',e=>{
+      e.preventDefault();
+      if(_dragId&&el.dataset.id&&_dragId!==el.dataset.id){
+        reorderTask(_dragId,el.dataset.id);
+      }
+    });
+
+    // Touch events for iOS
+    const handle=el.querySelector('.drag-handle');
+    if(!handle)return;
+    handle.addEventListener('touchstart',e=>{
+      _dragId=el.dataset.id;_dragEl=el;
+      _touchY=e.touches[0].clientY;
+      el.style.opacity='0.5';
+    },{passive:true});
+    handle.addEventListener('touchmove',e=>{
+      e.preventDefault();
+      const y=e.touches[0].clientY;
+      const target=document.elementFromPoint(e.touches[0].clientX,y);
+      const targetItem=target?.closest('.master-item[data-id]');
+      document.querySelectorAll('.master-item').forEach(e=>e.classList.remove('drag-over'));
+      if(targetItem&&targetItem!==_dragEl)targetItem.classList.add('drag-over');
+    },{passive:false});
+    handle.addEventListener('touchend',e=>{
+      el.style.opacity='';
+      const touch=e.changedTouches[0];
+      const target=document.elementFromPoint(touch.clientX,touch.clientY);
+      const targetItem=target?.closest('.master-item[data-id]');
+      document.querySelectorAll('.master-item').forEach(e=>e.classList.remove('drag-over'));
+      if(targetItem&&targetItem!==_dragEl&&_dragId){
+        reorderTask(_dragId,targetItem.dataset.id);
+      }
+      _dragId=null;_dragEl=null;
+    });
+  });
+}
+
+async function reorderTask(fromId,toId){
+  // Find positions in the full task list
+  const sorted=[...state.tasks].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
+  const fromIdx=sorted.findIndex(t=>t.id===fromId);
+  const toIdx=sorted.findIndex(t=>t.id===toId);
+  if(fromIdx===-1||toIdx===-1)return;
+  // Move the task
+  const [moved]=sorted.splice(fromIdx,1);
+  sorted.splice(toIdx,0,moved);
+  // Assign new sortOrder values
+  sorted.forEach((t,i)=>t.sortOrder=i);
+  state.tasks=sorted;
+  renderAdminContent();
+  // Save to Sheets
+  try{
+    await apiPost({action:'reorderTasks',order:sorted.map(t=>t.id)});
+  }catch(e){console.error('reorder save failed:',e)}
 }
 async function toggleXmas(){
   const next=String(!(state.settings.christmasMode==='true'));
@@ -1168,6 +1229,7 @@ function printToday(){
   // 'both' tasks appear in both sections
   const lunchtime=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='lunchtime'||s==='both'});
   const afternoon=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='afternoon'||s==='both'});
+  const evening=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='evening'||s==='both'});
   const unassigned=allToday.filter(t=>{const s=getEffectiveSession(t);return !s||s==='unset'});
 
   function taskRow(t){
@@ -1219,6 +1281,7 @@ function printToday(){
   const body=
     sectionBlock('Lunchtime','🕛','#FFFBEB',lunchtime)+
     sectionBlock('Afternoon','🌤','#EFF6FF',afternoon)+
+    sectionBlock('Evening','🌙','#F0EEFF',evening)+
     (unassigned.length?sectionBlock('Unassigned','📋','#F3F4F6',unassigned):'');
 
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
@@ -1277,6 +1340,7 @@ function renderInfoModal(id){
   const sessOptions=[
     {val:'lunchtime',label:'Lunchtime',emoji:'🕛',cls:'sess-lunchtime'},
     {val:'afternoon',label:'Afternoon',emoji:'🌤',cls:'sess-afternoon'},
+    {val:'evening',label:'Evening',emoji:'🌙',cls:'sess-evening'},
     {val:'both',label:'Both',emoji:'↕',cls:'sess-both'},
     {val:'unset',label:'Unassigned',emoji:'○',cls:'sess-unset'},
   ];
@@ -1290,7 +1354,7 @@ function renderInfoModal(id){
 
   const overrideNote=isOverridden
     ?`<div style="font-size:11px;color:#0F6E56;background:#E1F5EE;border-radius:6px;padding:5px 10px;margin-top:8px;display:inline-block">Today's override — resets tomorrow</div>`
-    :(defaultSess!=='unset'?`<div style="font-size:11px;color:var(--text3);margin-top:6px">Default: ${{lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',both:'↕ Both'}[defaultSess]||defaultSess}</div>`:'');
+    :(defaultSess!=='unset'?`<div style="font-size:11px;color:var(--text3);margin-top:6px">Default: ${{lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',evening:'🌙 Evening',both:'↕ Both'}[defaultSess]||defaultSess}</div>`:'');
 
   document.getElementById('info-modal-content').innerHTML=`
     <div class="modal-title">${t.name}</div>

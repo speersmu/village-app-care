@@ -240,7 +240,7 @@ input:focus,select:focus{border-color:var(--forest);box-shadow:0 0 0 3px rgba(45
 .step-num{width:22px;height:22px;border-radius:50%;background:var(--forest);color:#fff;font-size:12px;font-weight:700;text-align:center;line-height:22px;flex-shrink:0}
 .loading-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:16px}
 .spinner{width:32px;height:32px;border:2.5px solid var(--linen);border-top-color:var(--forest);border-radius:50%;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
+@media print{#app,#lock-screen{display:none!important}}
 .loading-wrap p{font-size:15px;color:var(--pebble)}
 .empty{text-align:center;padding:50px 20px;color:var(--pebble);font-size:15px;line-height:1.6}
 .err-banner{background:var(--warm-white);color:var(--ember);padding:12px 16px;border-radius:14px;font-size:13px;margin:0 14px 10px;line-height:1.5;border:1px solid #F4C5A8}
@@ -724,7 +724,8 @@ function hideTaskToday(id){
 }
 
 function initSwipe(){
-  initTodayDrag();
+  // Wait for DOM to fully paint before attaching touch listeners
+  requestAnimationFrame(()=>initTodayDrag());
 }
 
 function taskCardHtml(t,isExtra=false){
@@ -1346,7 +1347,7 @@ function printToday(){
     </div>
   </div>
   ${body}
-  <script>window.onload=function(){window.print()}<\/script>
+  <script>window.onload=function(){setTimeout(function(){window.focus();window.print();},250)}<\/script>
   </body></html>`;
 
   const w=window.open('','_blank','width=800,height=900');

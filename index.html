@@ -159,7 +159,6 @@ html,body{height:100%;overflow:hidden;background:var(--parchment);font-family:'D
 .sess-lunchtime{background:#FFF8E7;color:#7B4A0A}
 .sess-afternoon{background:#EEF4FF;color:#1A3A7C}
 .sess-evening{background:#F0EEFF;color:#3C3489}
-.sess-both{background:var(--mist);color:var(--deep-forest)}
 .sess-unset{background:var(--linen);color:var(--pebble)}
 .modal-close{width:100%;padding:15px;border:none;background:var(--forest);border-radius:14px;font-size:15px;color:#fff;cursor:pointer;font-family:inherit;margin-top:16px;font-weight:600}
 .modal-close:active{opacity:.85}
@@ -676,9 +675,9 @@ function renderToday(){
   </div>`;
 
   // Group ALL today's tasks by effective session
-  const lunchtime=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='lunchtime'||s==='both'});
-  const afternoon=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='afternoon'||s==='both'});
-  const evening=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='evening'||s==='both'});
+  const lunchtime=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='lunchtime'});
+  const afternoon=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='afternoon'});
+  const evening=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='evening'});
   const unassigned=allToday.filter(t=>{const s=getEffectiveSession(t);return !s||s==='unset'});
 
   function sessionSection(label,emoji,colour,tasks){
@@ -736,7 +735,7 @@ function taskCardHtml(t,isExtra=false){
   const infoBtn=`<button class="info-btn" onclick="event.stopPropagation();openInfoModal('${t.id}')" title="More info">ⓘ</button>`;
   const removeBtn=`<button class="remove-btn" onclick="event.stopPropagation();hideTaskToday('${t.id}')" title="Hide today">×</button>`;
   const effSess=getEffectiveSession(t);
-  const sessBadge=effSess&&effSess!=='unset'?`<span class="sess-badge sess-${effSess}">${{lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',evening:'🌙 Evening',both:'↕ Both'}[effSess]||''}</span>`:'';
+  const sessBadge=effSess&&effSess!=='unset'?`<span class="sess-badge sess-${effSess}">${{lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',evening:'🌙 Evening'}[effSess]||''}</span>`:'';
   return`<div class="task-card${isDone?' done':''}" data-id="${t.id}">
     <div class="task-row" onclick="toggleTask('${t.id}')">
       <div class="drag-handle" title="Hold to reorder">⠿</div>
@@ -983,7 +982,7 @@ async function renderAdminContent(){
     if(!groups[cat])return;
     listHtml+=`<div class="sec-label" style="padding-left:0;padding-top:8px">${CAT_LABELS[cat]||cat}</div>`;
     groups[cat].forEach(t=>{
-      const sessLabels={lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',evening:'🌙 Evening',both:'↕ Both',unset:'No session'};
+      const sessLabels={lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',evening:'🌙 Evening',unset:'No session'};
       const descPreview=t.desc?`<div style="font-size:11px;color:var(--pebble);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.desc}</div>`:'';
       listHtml+=`<div class="master-item${t.active?'':' inactive'}" data-id="${t.id}">
         <div class="master-item-info">
@@ -995,7 +994,6 @@ async function renderAdminContent(){
               <option value="lunchtime"${t.session==='lunchtime'?' selected':''}>🕛 Lunchtime</option>
               <option value="afternoon"${t.session==='afternoon'?' selected':''}>🌤 Afternoon</option>
               <option value="evening"${t.session==='evening'?' selected':''}>🌙 Evening</option>
-              <option value="both"${t.session==='both'?' selected':''}>↕ Both</option>
             </select>
           </div>
           ${descPreview}
@@ -1257,15 +1255,15 @@ function printToday(){
   const active=state.tasks.filter(t=>t.active&&(t.cat!=='christmas'||xmasOn));
   const dailyTasks=active.filter(t=>isScheduledToday(t.freq)&&t.freq!=='as-needed');
   const pickedTasks=getPickedTaskObjects();
-  const allToday=[...dailyTasks,...pickedTasks,...state.freeExtras];
+  const allToday=[...dailyTasks,...pickedTasks,...state.freeExtras]
+    .filter(t=>!state.hiddenToday.includes(String(t.id)));
 
   if(!allToday.length){alert('No tasks to print for today.');return}
 
   // Split into session buckets using today's effective session (override → default)
-  // 'both' tasks appear in both sections
-  const lunchtime=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='lunchtime'||s==='both'});
-  const afternoon=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='afternoon'||s==='both'});
-  const evening=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='evening'||s==='both'});
+  const lunchtime=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='lunchtime'});
+  const afternoon=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='afternoon'});
+  const evening=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='evening'});
   const unassigned=allToday.filter(t=>{const s=getEffectiveSession(t);return !s||s==='unset'});
 
   function taskRow(t){
@@ -1377,7 +1375,6 @@ function renderInfoModal(id){
     {val:'lunchtime',label:'Lunchtime',emoji:'🕛',cls:'sess-lunchtime'},
     {val:'afternoon',label:'Afternoon',emoji:'🌤',cls:'sess-afternoon'},
     {val:'evening',label:'Evening',emoji:'🌙',cls:'sess-evening'},
-    {val:'both',label:'Both',emoji:'↕',cls:'sess-both'},
     {val:'unset',label:'Unassigned',emoji:'○',cls:'sess-unset'},
   ];
 
@@ -1390,7 +1387,7 @@ function renderInfoModal(id){
 
   const overrideNote=isOverridden
     ?`<div style="font-size:11px;color:#0F6E56;background:#E1F5EE;border-radius:6px;padding:5px 10px;margin-top:8px;display:inline-block">Today's override — resets tomorrow</div>`
-    :(defaultSess!=='unset'?`<div style="font-size:11px;color:var(--text3);margin-top:6px">Default: ${{lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',evening:'🌙 Evening',both:'↕ Both'}[defaultSess]||defaultSess}</div>`:'');
+    :(defaultSess!=='unset'?`<div style="font-size:11px;color:var(--text3);margin-top:6px">Default: ${{lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',evening:'🌙 Evening'}[defaultSess]||defaultSess}</div>`:'');
 
   document.getElementById('info-modal-content').innerHTML=`
     <div class="modal-title">${t.name}</div>

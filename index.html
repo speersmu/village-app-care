@@ -365,18 +365,18 @@ input:focus,select:focus{border-color:var(--forest);box-shadow:0 0 0 3px rgba(45
 
     <!-- PIN pad -->
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;width:240px;margin:0 auto">
-      <button onclick="lockKey('1')" class="lk-btn">1</button>
-      <button onclick="lockKey('2')" class="lk-btn">2</button>
-      <button onclick="lockKey('3')" class="lk-btn">3</button>
-      <button onclick="lockKey('4')" class="lk-btn">4</button>
-      <button onclick="lockKey('5')" class="lk-btn">5</button>
-      <button onclick="lockKey('6')" class="lk-btn">6</button>
-      <button onclick="lockKey('7')" class="lk-btn">7</button>
-      <button onclick="lockKey('8')" class="lk-btn">8</button>
-      <button onclick="lockKey('9')" class="lk-btn">9</button>
-      <button onclick="lockKey('del')" class="lk-btn" style="font-size:18px">⌫</button>
-      <button onclick="lockKey('0')" class="lk-btn">0</button>
-      <button onclick="lockKey('ok')" class="lk-btn" style="font-size:13px;font-weight:700;color:#52B788">OK</button>
+      <button ontouchstart="event.preventDefault();lockKey('1')" onclick="lockKey('1')" class="lk-btn">1</button>
+      <button ontouchstart="event.preventDefault();lockKey('2')" onclick="lockKey('2')" class="lk-btn">2</button>
+      <button ontouchstart="event.preventDefault();lockKey('3')" onclick="lockKey('3')" class="lk-btn">3</button>
+      <button ontouchstart="event.preventDefault();lockKey('4')" onclick="lockKey('4')" class="lk-btn">4</button>
+      <button ontouchstart="event.preventDefault();lockKey('5')" onclick="lockKey('5')" class="lk-btn">5</button>
+      <button ontouchstart="event.preventDefault();lockKey('6')" onclick="lockKey('6')" class="lk-btn">6</button>
+      <button ontouchstart="event.preventDefault();lockKey('7')" onclick="lockKey('7')" class="lk-btn">7</button>
+      <button ontouchstart="event.preventDefault();lockKey('8')" onclick="lockKey('8')" class="lk-btn">8</button>
+      <button ontouchstart="event.preventDefault();lockKey('9')" onclick="lockKey('9')" class="lk-btn">9</button>
+      <button ontouchstart="event.preventDefault();lockKey('del')" onclick="lockKey('del')" class="lk-btn" style="font-size:18px">⌫</button>
+      <button ontouchstart="event.preventDefault();lockKey('0')" onclick="lockKey('0')" class="lk-btn">0</button>
+      <button ontouchstart="event.preventDefault();lockKey('ok')" onclick="lockKey('ok')" class="lk-btn" style="font-size:13px;font-weight:700;color:#52B788">OK</button>
     </div>
   </div>
 </div>
@@ -394,6 +394,9 @@ input:focus,select:focus{border-color:var(--forest);box-shadow:0 0 0 3px rgba(45
   font-family:'DM Sans',-apple-system,sans-serif;
   transition:background .1s;
   -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  user-select:none;
+  -webkit-user-select:none;
 }
 .lk-btn:active{background:#333330}
 </style>
@@ -1544,7 +1547,12 @@ const LOCK_PIN='2512';
 let lockBuffer='';
 let appUnlocked=false;
 
+let _lockKeyLastFire=0;
 function lockKey(k){
+  // Debounce to prevent touchstart+click double-fire on iOS
+  const now=Date.now();
+  if(now-_lockKeyLastFire<300)return;
+  _lockKeyLastFire=now;
   if(k==='del'){
     lockBuffer=lockBuffer.slice(0,-1);
   } else if(k==='ok'){

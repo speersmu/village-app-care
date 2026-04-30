@@ -419,7 +419,7 @@ function todayKey(){
 }
 function ls(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch{return d}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
-const HARDCODED_API_URL='https://script.google.com/macros/s/AKfycbyivyLeGx4KxCAb2gygYBCuTYE3Q8yrdVVLo1vIfylXJT4vt_6sKxhpqZkCknKdcuyTlQ/exec';
+const HARDCODED_API_URL='https://script.google.com/macros/s/AKfycbwLE36O-5u_xSgMXmhlAihdU6p98hNrRRYjbvputg8b2oJfAR_N0NeVDe_vL9999YaWjg/exec';
 // Clear any previously cached URL so the new deployment is always used
 if(ls('api_url','')!==HARDCODED_API_URL)lsSet('api_url','');
 function getApiUrl(){return HARDCODED_API_URL}
@@ -446,7 +446,7 @@ async function apiPost(body){
   const d=await r.json();if(d.error)throw new Error(d.error);return d;
 }
 
-let state={tasks:[],checked:[],pickedExtras:[],freeExtras:[],sessionOverrides:{},hiddenToday:[],settings:{}};
+let state={tasks:[],sessions:[],checked:[],pickedExtras:[],freeExtras:[],sessionOverrides:{},hiddenToday:[],settings:{}};
 let pinBuffer='';
 
 function isScheduledToday(freq){
@@ -521,13 +521,15 @@ function goScreen(name){
 async function loadToday(){
   document.getElementById('today-inner').innerHTML=loading();
   try{
-    const[tr,cr,er,sr]=await Promise.all([
+    const[tr,sr_sess,cr,er,sr]=await Promise.all([
       api('getTasks'),
+      api('getSessions'),
       api('getChecked',{date:todayKey()}),
       api('getExtras',{date:todayKey()}),
       api('getSettings'),
     ]);
     state.tasks=tr.tasks||[];
+    state.sessions=sr_sess.sessions||[];
     state.checked=cr.ids||[];
     const extras=er.extras||[];
     const sentinel=extras.find(e=>e.id==='__picked__');
@@ -558,13 +560,15 @@ async function refreshToday(){
   if(Date.now()-_lastWrite<15000)return; // grace period after last write — covers slow Apps Script
   _refreshing=true;
   try{
-    const[tr,cr,er,sr]=await Promise.all([
+    const[tr,sr_sess,cr,er,sr]=await Promise.all([
       api('getTasks'),
+      api('getSessions'),
       api('getChecked',{date:todayKey()}),
       api('getExtras',{date:todayKey()}),
       api('getSettings'),
     ]);
     const newTasks=tr.tasks||[];
+    const newSessions=sr_sess.sessions||[];
     const newChecked=cr.ids||[];
     const extras=er.extras||[];
     const sentinel=extras.find(e=>e.id==='__picked__');
@@ -579,6 +583,7 @@ async function refreshToday(){
     // Only update state + re-render if something actually changed
     const changed=
       JSON.stringify(newTasks)!==JSON.stringify(state.tasks)||
+      JSON.stringify(newSessions)!==JSON.stringify(state.sessions)||
       JSON.stringify(newChecked)!==JSON.stringify(state.checked)||
       JSON.stringify(newPicked)!==JSON.stringify(state.pickedExtras)||
       JSON.stringify(newOverrides)!==JSON.stringify(state.sessionOverrides)||
@@ -588,6 +593,7 @@ async function refreshToday(){
 
     if(changed){
       state.tasks=newTasks;
+      state.sessions=newSessions;
       state.checked=newChecked;
       state.pickedExtras=newPicked;
       state.sessionOverrides=newOverrides;
@@ -674,27 +680,38 @@ function renderToday(){
     <button onclick="loadToday()" style="background:none;border:none;font-size:12px;color:var(--pebble);cursor:pointer;font-family:inherit;padding:4px 0">&#8635; Refresh</button>
   </div>`;
 
-  // Group ALL today's tasks by effective session
-  const lunchtime=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='lunchtime'});
-  const afternoon=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='afternoon'});
-  const evening=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='evening'});
-  const unassigned=allToday.filter(t=>{const s=getEffectiveSession(t);return !s||s==='unset'});
+  // Group tasks by session, ordered by session start time
+  const currentSessId=getCurrentSessionId();
+  const sessionGroups={};
+  allToday.forEach(t=>{
+    const sid=getEffectiveSession(t);
+    if(!sessionGroups[sid])sessionGroups[sid]=[];
+    sessionGroups[sid].push(t);
+  });
 
-  function sessionSection(label,emoji,colour,tasks){
-    if(!tasks.length)return'';
-    let s=`<div class="sec-label" style="color:${colour}">${emoji} ${label}</div>`;
+  // Render sessions in time order, then unassigned at the end
+  const orderedSessions=[...state.sessions].sort((a,b)=>a.sortOrder-b.sortOrder);
+  orderedSessions.forEach(sess=>{
+    const tasks=sessionGroups[sess.id]||[];
+    if(!tasks.length)return;
+    const isCurrent=sess.id===currentSessId;
+    const timeStr=sess.startTime&&sess.endTime?` <span style="font-size:10px;font-weight:400;opacity:.7">${sess.startTime}–${sess.endTime}</span>`:'';
+    const currentBadge=isCurrent?` <span style="font-size:10px;font-weight:700;color:var(--forest);background:var(--mist);padding:2px 8px;border-radius:20px;margin-left:6px">NOW</span>`:'';
+    html+=`<div class="sec-label" style="color:var(--driftwood)">${sess.emoji} ${sess.name}${timeStr}${currentBadge}</div>`;
     tasks.forEach(t=>{
-      const isExtra=!isScheduledToday(t.freq)||t.freq==='as-needed'||t.id.startsWith('f_');
-      s+=taskCardHtml(t,isExtra);
+      const isExtra=!isScheduledToday(t.freq)||t.freq==='as-needed'||String(t.id).startsWith('f_');
+      html+=taskCardHtml(t,isExtra);
     });
-    return s;
-  }
+  });
 
-  html+=sessionSection('Lunchtime','🕛','var(--driftwood)',lunchtime);
-  html+=sessionSection('Afternoon','🌤','var(--driftwood)',afternoon);
-  html+=sessionSection('Evening','🌙','var(--driftwood)',evening);
+  // Unassigned tasks at the bottom
+  const unassigned=sessionGroups['unset']||[];
   if(unassigned.length){
-    html+=sessionSection('Unassigned','📋','var(--pebble)',unassigned);
+    html+=`<div class="sec-label" style="color:var(--pebble)">📋 Unassigned</div>`;
+    unassigned.forEach(t=>{
+      const isExtra=!isScheduledToday(t.freq)||t.freq==='as-needed'||String(t.id).startsWith('f_');
+      html+=taskCardHtml(t,isExtra);
+    });
   }
 
   if(!allToday.length)html+=`<div class="empty" style="padding:24px 20px">No tasks scheduled today.</div>`;
@@ -709,9 +726,41 @@ function renderToday(){
   initSwipe();
 }
 
-// Returns today's override if set, otherwise the task's default session
+// Migration map from old hardcoded strings to new session IDs
+const SESSION_MIGRATION={'morning':'s_morning','lunchtime':'s_lunchtime','afternoon':'s_afternoon','evening':'s_evening'};
+
+function migrateSessionId(val){
+  if(!val||val==='unset')return'unset';
+  if(SESSION_MIGRATION[val])return SESSION_MIGRATION[val];
+  return val; // already an ID like s_1234
+}
+
+function getSessionById(id){
+  return state.sessions.find(s=>s.id===id)||null;
+}
+
 function getEffectiveSession(t){
-  return state.sessionOverrides[String(t.id)] || t.session || 'unset';
+  const raw=state.sessionOverrides[String(t.id)]||t.session||'unset';
+  return migrateSessionId(raw);
+}
+
+function getSessionLabel(id){
+  const s=getSessionById(id);
+  return s?`${s.emoji} ${s.name}`:'Unassigned';
+}
+
+function getCurrentSessionId(){
+  // Find which session we're currently in based on time of day
+  const now=new Date();
+  const mins=now.getHours()*60+now.getMinutes();
+  const sorted=[...state.sessions].sort((a,b)=>a.sortOrder-b.sortOrder);
+  for(const s of sorted){
+    const [sh,sm]=s.startTime.split(':').map(Number);
+    const [eh,em]=s.endTime.split(':').map(Number);
+    const start=sh*60+sm, end=eh*60+em;
+    if(mins>=start&&mins<end)return s.id;
+  }
+  return null;
 }
 
 function hideTaskToday(id){
@@ -735,7 +784,8 @@ function taskCardHtml(t,isExtra=false){
   const infoBtn=`<button class="info-btn" onclick="event.stopPropagation();openInfoModal('${t.id}')" title="More info">ⓘ</button>`;
   const removeBtn=`<button class="remove-btn" onclick="event.stopPropagation();hideTaskToday('${t.id}')" title="Hide today">×</button>`;
   const effSess=getEffectiveSession(t);
-  const sessBadge=effSess&&effSess!=='unset'?`<span class="sess-badge sess-${effSess}">${{lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',evening:'🌙 Evening'}[effSess]||''}</span>`:'';
+  const sessObj=getSessionById(effSess);
+  const sessBadge=sessObj?`<span class="sess-badge sess-dynamic" style="background:#F5F3FF;color:#3C3489">${sessObj.emoji} ${sessObj.name}</span>`:'';
   return`<div class="task-card${isDone?' done':''}" data-id="${t.id}">
     <div class="task-row" onclick="toggleTask('${t.id}')">
       <div class="drag-handle" title="Hold to reorder">⠿</div>
@@ -982,18 +1032,19 @@ async function renderAdminContent(){
     if(!groups[cat])return;
     listHtml+=`<div class="sec-label" style="padding-left:0;padding-top:8px">${CAT_LABELS[cat]||cat}</div>`;
     groups[cat].forEach(t=>{
-      const sessLabels={lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',evening:'🌙 Evening',unset:'No session'};
+      const sessLabels={unset:'No session'};
+      state.sessions.forEach(s=>sessLabels[s.id]=`${s.emoji} ${s.name}`);
+      const taskSessId=migrateSessionId(t.session||'unset');
       const descPreview=t.desc?`<div style="font-size:11px;color:var(--pebble);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${t.desc}</div>`:'';
+      const sessOptions=state.sessions.map(s=>`<option value="${s.id}"${taskSessId===s.id?' selected':''}>${s.emoji} ${s.name}</option>`).join('');
       listHtml+=`<div class="master-item${t.active?'':' inactive'}" data-id="${t.id}">
         <div class="master-item-info">
           <div class="master-item-name">${t.name}</div>
           <div class="master-freq">${FREQ_LABELS[t.freq]||t.freq}</div>
           <div style="margin-top:6px">
             <select class="sess-select" onchange="updateTaskSession('${t.id}',this.value)" title="Assign session">
-              <option value="unset"${(!t.session||t.session==='unset')?' selected':''}>No session</option>
-              <option value="lunchtime"${t.session==='lunchtime'?' selected':''}>🕛 Lunchtime</option>
-              <option value="afternoon"${t.session==='afternoon'?' selected':''}>🌤 Afternoon</option>
-              <option value="evening"${t.session==='evening'?' selected':''}>🌙 Evening</option>
+              <option value="unset"${taskSessId==='unset'?' selected':''}>No session</option>
+              ${sessOptions}
             </select>
           </div>
           ${descPreview}
@@ -1055,6 +1106,39 @@ async function renderAdminContent(){
       <button class="btn btn-sec" onclick="adminLock()">Lock admin area</button>
     </div>
     <div class="card"><button class="btn btn-danger" onclick="resetToday()">Reset today's checklist</button></div>
+    <div class="card" id="sessions-card">
+      <h3>Sessions</h3>
+      ${state.sessions.length?state.sessions.sort((a,b)=>a.sortOrder-b.sortOrder).map(s=>`
+        <div class="master-item" style="align-items:center">
+          <span style="font-size:22px;margin-right:6px">${s.emoji}</span>
+          <div class="master-item-info">
+            <div class="master-item-name">${s.name}</div>
+            <div class="master-freq">${s.startTime} – ${s.endTime}</div>
+          </div>
+          <div class="master-item-controls">
+            <button class="del-btn" onclick="deleteSessionAdmin('${s.id}')" title="Delete session">×</button>
+          </div>
+        </div>`).join(''):'<div style="font-size:13px;color:var(--pebble);padding:8px 0">No sessions yet.</div>'}
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--linen)">
+        <div style="font-size:12px;font-weight:700;color:var(--pebble);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Add session</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input type="text" id="sess-emoji" placeholder="Emoji" maxlength="4" style="width:64px;text-align:center;font-size:20px;padding:8px">
+          <input type="text" id="sess-name" placeholder="Session name" style="flex:1">
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <div style="flex:1">
+            <label class="fl" style="margin-top:0">Start time</label>
+            <input type="time" id="sess-start" style="width:100%">
+          </div>
+          <div style="flex:1">
+            <label class="fl" style="margin-top:0">End time</label>
+            <input type="time" id="sess-end" style="width:100%">
+          </div>
+        </div>
+        <button class="btn btn-primary" onclick="addSessionAdmin()">Add session</button>
+        <div id="sess-flash" class="flash"></div>
+      </div>
+    </div>
   </div>`;
   initAdminDrag();
 }
@@ -1204,7 +1288,37 @@ async function changePin(){
 }
 function adminLock(){setAdminUnlocked(false);renderPin()}
 
-async function updateTaskSession(id,session){
+async function addSessionAdmin(){
+  const emoji=document.getElementById('sess-emoji')?.value.trim();
+  const name=document.getElementById('sess-name')?.value.trim();
+  const startTime=document.getElementById('sess-start')?.value;
+  const endTime=document.getElementById('sess-end')?.value;
+  if(!name){alert('Please enter a session name.');return}
+  if(!emoji){alert('Please enter an emoji.');return}
+  if(!startTime||!endTime){alert('Please set start and end times.');return}
+  try{
+    const r=await apiPost({action:'addSession',session:{name,emoji,startTime,endTime}});
+    if(r.ok){
+      state.sessions.push({id:r.id,name,emoji,startTime,endTime,sortOrder:state.sessions.length});
+      showFlash('sess-flash');
+      setTimeout(()=>renderAdminContent(),800);
+    }
+  }catch(e){alert('Error adding session: '+e.message)}
+}
+
+async function deleteSessionAdmin(id){
+  const sess=state.sessions.find(s=>s.id===id);
+  if(!sess)return;
+  if(!confirm(`Delete "${sess.name}"? Tasks assigned to this session will become unassigned.`))return;
+  try{
+    await apiPost({action:'deleteSession',id});
+    state.sessions=state.sessions.filter(s=>s.id!==id);
+    // Unassign tasks locally
+    state.tasks.forEach(t=>{if(migrateSessionId(t.session||'unset')===id)t.session='unset'});
+    renderAdminContent();
+    renderToday();
+  }catch(e){alert('Error deleting session: '+e.message)}
+}
   try{
     await apiPost({action:'updateTask',id,field:'session',value:session});
     const t=state.tasks.find(t=>String(t.id)===String(id));
@@ -1260,11 +1374,15 @@ function printToday(){
 
   if(!allToday.length){alert('No tasks to print for today.');return}
 
-  // Split into session buckets using today's effective session (override → default)
-  const lunchtime=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='lunchtime'});
-  const afternoon=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='afternoon'});
-  const evening=allToday.filter(t=>{const s=getEffectiveSession(t);return s==='evening'});
-  const unassigned=allToday.filter(t=>{const s=getEffectiveSession(t);return !s||s==='unset'});
+  // Group by dynamic sessions ordered by time
+  const printSessions=[...state.sessions].sort((a,b)=>a.sortOrder-b.sortOrder);
+  const printGroups={unset:[]};
+  printSessions.forEach(s=>printGroups[s.id]=[]);
+  allToday.forEach(t=>{
+    const sid=getEffectiveSession(t);
+    if(printGroups[sid])printGroups[sid].push(t);
+    else printGroups['unset'].push(t);
+  });
 
   function taskRow(t){
     const isDone=state.checked.includes(t.id);
@@ -1312,11 +1430,11 @@ function printToday(){
   }
 
   const total=allToday.length;
-  const body=
-    sectionBlock('Lunchtime','🕛','#FFFBEB',lunchtime)+
-    sectionBlock('Afternoon','🌤','#EFF6FF',afternoon)+
-    sectionBlock('Evening','🌙','#F0EEFF',evening)+
-    (unassigned.length?sectionBlock('Unassigned','📋','#F3F4F6',unassigned):'');
+  const body=printSessions
+    .filter(s=>printGroups[s.id]&&printGroups[s.id].length)
+    .map(s=>sectionBlock(s.name,s.emoji,'#FAFAFA',printGroups[s.id]))
+    .join('')+
+    (printGroups['unset'].length?sectionBlock('Unassigned','📋','#F3F4F6',printGroups['unset']):'');
 
   const html=`<!DOCTYPE html><html><head><meta charset="UTF-8">
   <title>Daily Care Tasks — ${dateStr}</title>
@@ -1369,25 +1487,27 @@ function renderInfoModal(id){
   if(!t)return;
   const effSess=getEffectiveSession(t);
   const isOverridden=!!state.sessionOverrides[String(t.id)];
-  const defaultSess=t.session||'unset';
+  const defaultSessId=migrateSessionId(t.session||'unset');
+  const defaultSessObj=getSessionById(defaultSessId);
 
+  // Build toggle buttons from live sessions
   const sessOptions=[
-    {val:'lunchtime',label:'Lunchtime',emoji:'🕛',cls:'sess-lunchtime'},
-    {val:'afternoon',label:'Afternoon',emoji:'🌤',cls:'sess-afternoon'},
-    {val:'evening',label:'Evening',emoji:'🌙',cls:'sess-evening'},
-    {val:'unset',label:'Unassigned',emoji:'○',cls:'sess-unset'},
+    ...state.sessions.map(s=>({val:s.id,label:s.name,emoji:s.emoji})),
+    {val:'unset',label:'Unassigned',emoji:'○'}
   ];
 
   const toggleBtns=sessOptions.map(o=>`
     <button onclick="setSessionOverride('${id}','${o.val}')"
-      style="flex:1;padding:10px 4px;border:2px solid ${effSess===o.val?'#1D9E75':'#e5e7eb'};border-radius:10px;background:${effSess===o.val?'#E1F5EE':'var(--bg2)'};cursor:pointer;font-family:inherit;font-size:12px;font-weight:${effSess===o.val?'700':'400'};color:${effSess===o.val?'#0F6E56':'var(--text2)'};transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:4px">
+      style="flex:1;min-width:60px;padding:10px 4px;border:2px solid ${effSess===o.val?'#1D9E75':'#e5e7eb'};border-radius:10px;background:${effSess===o.val?'#E1F5EE':'var(--bg2)'};cursor:pointer;font-family:inherit;font-size:12px;font-weight:${effSess===o.val?'700':'400'};color:${effSess===o.val?'#0F6E56':'var(--text2)'};transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:4px">
       <span style="font-size:18px">${o.emoji}</span>
       <span>${o.label}</span>
     </button>`).join('');
 
   const overrideNote=isOverridden
     ?`<div style="font-size:11px;color:#0F6E56;background:#E1F5EE;border-radius:6px;padding:5px 10px;margin-top:8px;display:inline-block">Today's override — resets tomorrow</div>`
-    :(defaultSess!=='unset'?`<div style="font-size:11px;color:var(--text3);margin-top:6px">Default: ${{lunchtime:'🕛 Lunchtime',afternoon:'🌤 Afternoon',evening:'🌙 Evening'}[defaultSess]||defaultSess}</div>`:'');
+    :(defaultSessObj?`<div style="font-size:11px;color:var(--text3);margin-top:6px">Default: ${defaultSessObj.emoji} ${defaultSessObj.name}</div>`:
+      defaultSessId==='unset'?'':
+      `<div style="font-size:11px;color:var(--text3);margin-top:6px">Default: ${defaultSessId}</div>`);;
 
   document.getElementById('info-modal-content').innerHTML=`
     <div class="modal-title">${t.name}</div>

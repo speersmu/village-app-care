@@ -238,7 +238,9 @@ input:focus,select:focus{border-color:var(--forest);box-shadow:0 0 0 3px rgba(45
 .step{display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;font-size:14px;color:var(--driftwood);line-height:1.5}
 .step-num{width:22px;height:22px;border-radius:50%;background:var(--forest);color:#fff;font-size:12px;font-weight:700;text-align:center;line-height:22px;flex-shrink:0}
 .loading-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:16px}
-.spinner{width:32px;height:32px;border:2.5px solid var(--linen);border-top-color:var(--forest);border-radius:50%;animation:spin .8s linear infinite}
+.spinner{width:36px;height:36px;border:3px solid var(--linen);border-top-color:var(--forest);border-radius:50%;animation:spin .7s linear infinite;-webkit-animation:spin .7s linear infinite}
+@keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+@-webkit-keyframes spin{0%{-webkit-transform:rotate(0deg)}100%{-webkit-transform:rotate(360deg)}}
 @media print{#app,#lock-screen{display:none!important}}
 .loading-wrap p{font-size:15px;color:var(--pebble)}
 .empty{text-align:center;padding:50px 20px;color:var(--pebble);font-size:15px;line-height:1.6}
@@ -425,7 +427,7 @@ function todayKey(){
 }
 function ls(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch{return d}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
-const HARDCODED_API_URL='https://script.google.com/macros/s/AKfycbwLE36O-5u_xSgMXmhlAihdU6p98hNrRRYjbvputg8b2oJfAR_N0NeVDe_vL9999YaWjg/exec';
+const HARDCODED_API_URL='https://script.google.com/macros/s/AKfycbyL47h321nmi5spdgyvvWGqzTEIUwXFpr03IBdBGOrYJ8O9AMyghGbqQO6Xhya0hzbHBQ/exec';
 // Clear any previously cached URL so the new deployment is always used
 if(ls('api_url','')!==HARDCODED_API_URL)lsSet('api_url','');
 function getApiUrl(){return HARDCODED_API_URL}

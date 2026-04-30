@@ -326,16 +326,16 @@ input:focus,select:focus{border-color:var(--forest);box-shadow:0 0 0 3px rgba(45
       Admin
     </button>
   </nav>
-</div>
 
-<!-- ── LOCK SCREEN ─────────────────────────────────────── -->
-<div id="lock-screen" style="
-  position:fixed;inset:0;z-index:9999;
-  background:#1C1917;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;
-  font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;
-  padding:32px 24px;
-">
+  <!-- ── LOCK SCREEN ─────────────────────────────────────── -->
+  <div id="lock-screen" style="
+    position:fixed;inset:0;z-index:9999;
+    background:#1C1917;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-family:'DM Sans',-apple-system,BlinkMacSystemFont,sans-serif;
+    padding:32px 24px;
+    touch-action:manipulation;
+  ">
   <!-- Logo mark -->
   <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:16px">
     <rect width="72" height="72" rx="18" fill="#2D6A4F"/>
@@ -379,7 +379,14 @@ input:focus,select:focus{border-color:var(--forest);box-shadow:0 0 0 3px rgba(45
       <button ontouchstart="event.preventDefault();lockKey('ok')" onclick="lockKey('ok')" class="lk-btn" style="font-size:13px;font-weight:700;color:#52B788">OK</button>
     </div>
   </div>
+  <!-- end lock screen -->
+
+  <div class="modal-bg" id="info-modal-bg">
+    <div class="modal" id="info-modal-content"></div>
+  </div>
+
 </div>
+<!-- end #app -->
 
 <style>
 .lk-btn{
@@ -400,10 +407,6 @@ input:focus,select:focus{border-color:var(--forest);box-shadow:0 0 0 3px rgba(45
 }
 .lk-btn:active{background:#333330}
 </style>
-
-<div class="modal-bg" id="info-modal-bg">
-  <div class="modal" id="info-modal-content"></div>
-</div>
 
 <script>
 const DAYS=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -1321,6 +1324,8 @@ async function deleteSessionAdmin(id){
     renderToday();
   }catch(e){alert('Error deleting session: '+e.message)}
 }
+
+async function updateTaskSession(id,session){
   try{
     await apiPost({action:'updateTask',id,field:'session',value:session});
     const t=state.tasks.find(t=>String(t.id)===String(id));

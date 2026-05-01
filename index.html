@@ -455,6 +455,7 @@ async function apiPost(body){
 }
 
 let state={tasks:[],sessions:[],checked:[],pickedExtras:[],freeExtras:[],sessionOverrides:{},hiddenToday:[],settings:{}};
+let appUnlocked=false; // declared here so all functions can reference it
 let pinBuffer='';
 
 function isScheduledToday(freq){
@@ -1494,7 +1495,6 @@ function setAppContentInteractive(on){
 
 let _infoLastFire=0;
 function openInfoModal(id){
-  if(!appUnlocked)return; // don't open modal if lock screen is showing
   const now=Date.now();
   if(now-_infoLastFire<300)return;
   _infoLastFire=now;
@@ -1565,7 +1565,6 @@ function closeInfoModal(){document.getElementById('info-modal-bg').classList.rem
 // ── LOCK SCREEN ───────────────────────────────────────────────
 const LOCK_PIN='2512';
 let lockBuffer='';
-let appUnlocked=false;
 
 let _lockKeyLastFire=0;
 function lockKey(k){

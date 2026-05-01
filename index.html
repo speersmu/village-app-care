@@ -1257,10 +1257,13 @@ async function reorderTask(fromId,toId){
   sorted.splice(toIdx,0,moved);
   sorted.forEach((t,i)=>t.sortOrder=i);
   state.tasks=sorted;
+  markWritten();   // block background refresh immediately
+  beginSave();     // count as in-flight so refresh waits for completion
   renderToday();
   try{
     await apiPost({action:'reorderTasks',order:sorted.map(t=>t.id)});
   }catch(e){console.error('reorder save failed:',e)}
+  finally{endSave()}
 }
 async function toggleXmas(){
   const next=String(!(state.settings.christmasMode==='true'));

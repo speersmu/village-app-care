@@ -1374,6 +1374,61 @@ async function resetToday(){
 
 // ── PRINT ─────────────────────────────────────────────────────
 function printToday(){
+  // Show session picker before printing
+  const xmasOn=state.settings.christmasMode==='true';
+  const active=state.tasks.filter(t=>t.active&&(t.cat!=='christmas'||xmasOn));
+  const dailyTasks=active.filter(t=>isScheduledToday(t.freq)&&t.freq!=='as-needed');
+  const pickedTasks=getPickedTaskObjects();
+  const allToday=[...dailyTasks,...pickedTasks,...state.freeExtras]
+    .filter(t=>!state.hiddenToday.includes(String(t.id)));
+
+  if(!allToday.length){alert('No tasks to print for today.');return}
+
+  // Work out which sessions have tasks today
+  const orderedSess=[...state.sessions].sort((a,b)=>a.sortOrder-b.sortOrder);
+  const sessionsWithTasks=orderedSess.filter(s=>
+    allToday.some(t=>getEffectiveSession(t)===s.id)
+  );
+  const hasUnassigned=allToday.some(t=>getEffectiveSession(t)==='unset');
+
+  // Build picker modal
+  const sessionRows=sessionsWithTasks.map(s=>`
+    <label style="display:flex;align-items:center;gap:12px;padding:13px 16px;border:1.5px solid var(--linen);border-radius:12px;background:var(--white);cursor:pointer;font-size:15px;color:var(--stone)">
+      <input type="checkbox" value="${s.id}" checked style="width:18px;height:18px;accent-color:var(--forest);cursor:pointer;flex-shrink:0">
+      <span style="font-size:18px">${s.emoji}</span>
+      <span style="flex:1;font-weight:500">${s.name}</span>
+      <span style="font-size:12px;color:var(--pebble)">${allToday.filter(t=>getEffectiveSession(t)===s.id).length} tasks</span>
+    </label>`).join('');
+
+  const unassignedRow=hasUnassigned?`
+    <label style="display:flex;align-items:center;gap:12px;padding:13px 16px;border:1.5px solid var(--linen);border-radius:12px;background:var(--white);cursor:pointer;font-size:15px;color:var(--stone)">
+      <input type="checkbox" value="unset" checked style="width:18px;height:18px;accent-color:var(--forest);cursor:pointer;flex-shrink:0">
+      <span style="font-size:18px">📋</span>
+      <span style="flex:1;font-weight:500">Unassigned</span>
+      <span style="font-size:12px;color:var(--pebble)">${allToday.filter(t=>getEffectiveSession(t)==='unset').length} tasks</span>
+    </label>`:'';
+
+  document.getElementById('info-modal-content').innerHTML=`
+    <div class="modal-title">Print today's tasks</div>
+    <div class="modal-cat" style="margin-bottom:16px">Select which sessions to include</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:20px">
+      ${sessionRows}${unassignedRow}
+    </div>
+    <button class="modal-close" ontouchstart="event.preventDefault();doPrint()" onclick="doPrint()" style="margin-bottom:8px">🖨 Print selected</button>
+    <button onclick="closeInfoModal()" ontouchstart="event.preventDefault();closeInfoModal()" style="width:100%;padding:13px;border:1px solid var(--linen);border-radius:14px;background:var(--parchment);color:var(--driftwood);font-size:15px;cursor:pointer;font-family:inherit;touch-action:manipulation">Cancel</button>`;
+
+  document.getElementById('info-modal-bg').classList.add('open');
+}
+
+function doPrint(){
+  // Read selected sessions from checkboxes
+  const checked=[...document.querySelectorAll('#info-modal-content input[type=checkbox]:checked')].map(cb=>cb.value);
+  closeInfoModal();
+  if(!checked.length){alert('Please select at least one session.');return}
+  printWithSessions(checked);
+}
+
+function printWithSessions(selectedSessions){
   const now=new Date();
   const dateStr=DAYS[now.getDay()]+' '+now.getDate()+' '+MONTHS[now.getMonth()]+' '+now.getFullYear();
   const xmasOn=state.settings.christmasMode==='true';
@@ -1385,14 +1440,16 @@ function printToday(){
 
   if(!allToday.length){alert('No tasks to print for today.');return}
 
-  // Group by dynamic sessions ordered by time
-  const printSessions=[...state.sessions].sort((a,b)=>a.sortOrder-b.sortOrder);
+  // Group by dynamic sessions ordered by time, filtered to selected only
+  const printSessions=[...state.sessions]
+    .filter(s=>selectedSessions.includes(s.id))
+    .sort((a,b)=>a.sortOrder-b.sortOrder);
   const printGroups={unset:[]};
   printSessions.forEach(s=>printGroups[s.id]=[]);
   allToday.forEach(t=>{
     const sid=getEffectiveSession(t);
     if(printGroups[sid])printGroups[sid].push(t);
-    else printGroups['unset'].push(t);
+    else if(selectedSessions.includes('unset'))printGroups['unset'].push(t);
   });
 
   function taskRow(t){

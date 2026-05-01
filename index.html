@@ -1230,10 +1230,8 @@ function _moveDrag(clientX, clientY){
   if(targetCard && targetCard!==_drag.el){
     targetCard.classList.add('drag-over');
     _drag.lastTarget=targetCard.dataset.id;
-  } else if(!targetCard){
-    _drag.lastTarget=null;
   }
-  // If targetCard===_drag.el, keep lastTarget as-is so brief overlap doesn't cancel it
+  // Don't null lastTarget if we briefly pass over the source card
 }
 
 function _endDrag(){
@@ -1252,9 +1250,9 @@ function _endDrag(){
 
 async function reorderTask(fromId,toId){
   const sorted=[...state.tasks].sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
-  const fromIdx=sorted.findIndex(t=>t.id===fromId);
-  const toIdx=sorted.findIndex(t=>t.id===toId);
-  if(fromIdx===-1||toIdx===-1)return;
+  const fromIdx=sorted.findIndex(t=>String(t.id)===String(fromId));
+  const toIdx=sorted.findIndex(t=>String(t.id)===String(toId));
+  if(fromIdx===-1||toIdx===-1){console.warn('reorder: task not found',fromId,toId);return;}
   const [moved]=sorted.splice(fromIdx,1);
   sorted.splice(toIdx,0,moved);
   sorted.forEach((t,i)=>t.sortOrder=i);

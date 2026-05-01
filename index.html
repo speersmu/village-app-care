@@ -1496,12 +1496,15 @@ function setAppContentInteractive(on){
 let _infoLastFire=0;
 function openInfoModal(id){
   const now=Date.now();
-  if(now-_infoLastFire<300)return;
+  if(now-_infoLastFire<300){console.log('info debounced');return;}
   _infoLastFire=now;
   const t=state.tasks.find(t=>String(t.id)===String(id));
+  console.log('openInfoModal',id,'task found:',!!t,'sessions loaded:',state.sessions.length);
   if(!t)return;
   renderInfoModal(id);
-  document.getElementById('info-modal-bg').classList.add('open');
+  const bg=document.getElementById('info-modal-bg');
+  console.log('modal bg found:',!!bg,'adding open class');
+  if(bg)bg.classList.add('open');
 }
 
 function renderInfoModal(id){

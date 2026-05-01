@@ -160,10 +160,10 @@ html,body{height:100%;overflow:hidden;background:var(--parchment);font-family:'D
 .sess-afternoon{background:#EEF4FF;color:#1A3A7C}
 .sess-evening{background:#F0EEFF;color:#3C3489}
 .sess-unset{background:var(--linen);color:var(--pebble)}
-.modal-close{width:100%;padding:15px;border:none;background:var(--forest);border-radius:14px;font-size:15px;color:#fff;cursor:pointer;font-family:inherit;margin-top:16px;font-weight:600}
+.modal-close{width:100%;padding:15px;border:none;background:var(--forest);border-radius:14px;font-size:15px;color:#fff;cursor:pointer;font-family:inherit;margin-top:16px;font-weight:600;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .modal-close:active{opacity:.85}
 /* info button on task card */
-.info-btn{background:none;border:none;color:var(--pebble);cursor:pointer;padding:6px 4px;font-size:16px;line-height:1;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;transition:background .1s}
+.info-btn{background:none;border:none;color:var(--pebble);cursor:pointer;padding:6px 4px;font-size:16px;line-height:1;flex-shrink:0;display:flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:50%;transition:background .1s;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .info-btn:active{background:var(--linen)}
 
 /* Easy mode — larger, more visible info button */
@@ -177,7 +177,7 @@ html,body{height:100%;overflow:hidden;background:var(--parchment);font-family:'D
 .easy-mode .modal-desc{font-size:19px;color:var(--stone);line-height:1.7;font-weight:500}
 .easy-mode .modal-close{font-size:19px;padding:20px;border-radius:18px}
 /* remove button on task card */
-.remove-btn{background:none;border:none;color:var(--pebble);cursor:pointer;padding:4px 6px;font-size:18px;line-height:1;flex-shrink:0;opacity:0.5;transition:opacity .15s;font-weight:300}
+.remove-btn{background:none;border:none;color:var(--pebble);cursor:pointer;padding:4px 6px;font-size:18px;line-height:1;flex-shrink:0;opacity:0.5;transition:opacity .15s;font-weight:300;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .remove-btn:active,.remove-btn:hover{opacity:1;color:var(--ember)}
 .sess-badge{display:inline-block;margin-top:4px;margin-left:4px;font-size:11px;font-weight:600;padding:2px 8px;border-radius:20px}
 /* admin session select */
@@ -789,7 +789,7 @@ function taskCardHtml(t,isExtra=false){
   const isHidden=state.hiddenToday.includes(String(t.id));
   if(isHidden)return''; // hidden for today
   const note=t.note?`<div class="task-note">${t.note}</div>`:'';
-  const infoBtn=`<button class="info-btn" onclick="event.stopPropagation();openInfoModal('${t.id}')" title="More info">ⓘ</button>`;
+  const infoBtn=`<button class="info-btn" ontouchstart="event.stopPropagation();event.preventDefault();openInfoModal('${t.id}')" onclick="event.stopPropagation();openInfoModal('${t.id}')" title="More info">ⓘ</button>`;
   const removeBtn=`<button class="remove-btn" onclick="event.stopPropagation();hideTaskToday('${t.id}')" title="Hide today">×</button>`;
   const effSess=getEffectiveSession(t);
   const sessObj=getSessionById(effSess);
@@ -859,7 +859,7 @@ function renderPick(){
           <div class="pick-item-name">${t.name}</div>
           <div class="pick-item-cat">${CAT_LABELS[t.cat]||t.cat} · ${FREQ_LABELS[t.freq]||t.freq}</div>
         </div>
-        <button class="info-btn" onclick="event.stopPropagation();openInfoModal('${t.id}')" title="More info">ⓘ</button>
+        <button class="info-btn" ontouchstart="event.stopPropagation();event.preventDefault();openInfoModal('${t.id}')" onclick="event.stopPropagation();openInfoModal('${t.id}')" title="More info">ⓘ</button>
       </div>`;
     });
     html+='</div>';
@@ -1484,7 +1484,11 @@ function printToday(){
 }
 
 // ── INFO MODAL ────────────────────────────────────────────────
+let _infoLastFire=0;
 function openInfoModal(id){
+  const now=Date.now();
+  if(now-_infoLastFire<300)return;
+  _infoLastFire=now;
   const t=state.tasks.find(t=>String(t.id)===String(id));
   if(!t)return;
   renderInfoModal(id);

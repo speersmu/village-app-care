@@ -1486,6 +1486,7 @@ function printToday(){
 // ── INFO MODAL ────────────────────────────────────────────────
 let _infoLastFire=0;
 function openInfoModal(id){
+  if(!appUnlocked)return; // don't open modal if lock screen is showing
   const now=Date.now();
   if(now-_infoLastFire<300)return;
   _infoLastFire=now;
@@ -1588,6 +1589,9 @@ function updateLockDots(){
 function checkLockPin(){
   if(lockBuffer===LOCK_PIN){
     appUnlocked=true;
+    // Restore touch interaction to app content
+    const app=document.getElementById('app');
+    if(app)app.style.pointerEvents='';
     const ls=document.getElementById('lock-screen');
     if(ls){
       ls.style.opacity='0';
@@ -1623,6 +1627,7 @@ document.addEventListener('visibilitychange',()=>{
     if(_printWindowOpen){_printWindowOpen=false;return;}
     appUnlocked=false;
     lockBuffer='';
+    closeInfoModal(); // close any open modal before locking
     const ls=document.getElementById('lock-screen');
     if(ls){
       ls.style.opacity='1';
@@ -1630,6 +1635,9 @@ document.addEventListener('visibilitychange',()=>{
       updateLockDots();
       const err=document.getElementById('lock-err');
       if(err)err.textContent='';
+      // Block touches to app content underneath
+      const app=document.getElementById('app');
+      if(app)app.style.pointerEvents='none';
     }
   }
   // Normal sync refresh when returning (only if unlocked)
@@ -1642,6 +1650,7 @@ document.addEventListener('visibilitychange',()=>{
 // ── INIT ──────────────────────────────────────────────────────
 const easyOn=isEasyMode();
 document.getElementById('app').classList.toggle('easy-mode',easyOn);
+document.getElementById('app').style.pointerEvents='none'; // locked on load
 document.getElementById('easy-sw').classList.toggle('on',easyOn);
 const now=new Date();
 // date is rendered inside renderToday, not in the topbar

@@ -1521,9 +1521,11 @@ function renderInfoModal(id){
 
   const toggleBtns=sessOptions.map(o=>`
     <button onclick="setSessionOverride('${id}','${o.val}')"
-      style="flex:1;min-width:60px;padding:10px 4px;border:2px solid ${effSess===o.val?'#1D9E75':'#e5e7eb'};border-radius:10px;background:${effSess===o.val?'#E1F5EE':'var(--bg2)'};cursor:pointer;font-family:inherit;font-size:12px;font-weight:${effSess===o.val?'700':'400'};color:${effSess===o.val?'#0F6E56':'var(--text2)'};transition:all .15s;display:flex;flex-direction:column;align-items:center;gap:4px">
-      <span style="font-size:18px">${o.emoji}</span>
-      <span>${o.label}</span>
+      ontouchstart="event.preventDefault();setSessionOverride('${id}','${o.val}')"
+      style="width:100%;padding:13px 16px;border:1.5px solid ${effSess===o.val?'#1D9E75':'var(--linen)'};border-radius:12px;background:${effSess===o.val?'#E1F5EE':'var(--white)'};cursor:pointer;font-family:inherit;font-size:15px;font-weight:${effSess===o.val?'600':'400'};color:${effSess===o.val?'#0F6E56':'var(--stone)'};transition:all .15s;display:flex;align-items:center;gap:12px;text-align:left;touch-action:manipulation;-webkit-tap-highlight-color:transparent">
+      <span style="font-size:20px;width:28px;text-align:center">${o.emoji}</span>
+      <span style="flex:1">${o.label}</span>
+      ${effSess===o.val?'<span style="color:#1D9E75;font-size:16px">✓</span>':''}
     </button>`).join('');
 
   const overrideNote=isOverridden
@@ -1537,7 +1539,7 @@ function renderInfoModal(id){
     <div class="modal-cat">${CAT_LABELS[t.cat]||t.cat||'Extra'}</div>
     <div style="height:16px"></div>
     <div class="modal-section-label">Session</div>
-    <div style="display:flex;gap:8px;margin-top:8px">${toggleBtns}</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">${toggleBtns}</div>
     ${overrideNote}
     ${t.desc?`<div style="height:16px"></div>
     <div class="modal-section-label">Notes &amp; instructions</div>

@@ -1484,6 +1484,14 @@ function printToday(){
 }
 
 // ── INFO MODAL ────────────────────────────────────────────────
+function setAppContentInteractive(on){
+  // Target only the content area and nav — never the lock screen itself
+  ['scr-today','scr-pick','scr-log','scr-admin','.bottom-nav'].forEach(sel=>{
+    const el=sel.startsWith('.')?document.querySelector(sel):document.getElementById(sel);
+    if(el)el.style.pointerEvents=on?'':'none';
+  });
+}
+
 let _infoLastFire=0;
 function openInfoModal(id){
   if(!appUnlocked)return; // don't open modal if lock screen is showing
@@ -1590,8 +1598,7 @@ function checkLockPin(){
   if(lockBuffer===LOCK_PIN){
     appUnlocked=true;
     // Restore touch interaction to app content
-    const app=document.getElementById('app');
-    if(app)app.style.pointerEvents='';
+    setAppContentInteractive(true);
     const ls=document.getElementById('lock-screen');
     if(ls){
       ls.style.opacity='0';
@@ -1635,9 +1642,7 @@ document.addEventListener('visibilitychange',()=>{
       updateLockDots();
       const err=document.getElementById('lock-err');
       if(err)err.textContent='';
-      // Block touches to app content underneath
-      const app=document.getElementById('app');
-      if(app)app.style.pointerEvents='none';
+      setAppContentInteractive(false);
     }
   }
   // Normal sync refresh when returning (only if unlocked)
@@ -1650,8 +1655,8 @@ document.addEventListener('visibilitychange',()=>{
 // ── INIT ──────────────────────────────────────────────────────
 const easyOn=isEasyMode();
 document.getElementById('app').classList.toggle('easy-mode',easyOn);
-document.getElementById('app').style.pointerEvents='none'; // locked on load
 document.getElementById('easy-sw').classList.toggle('on',easyOn);
+setAppContentInteractive(false); // locked on load
 const now=new Date();
 // date is rendered inside renderToday, not in the topbar
 if(!getApiUrl())goScreen('admin');else goScreen('today');

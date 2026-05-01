@@ -381,7 +381,7 @@ input:focus,select:focus{border-color:var(--forest);box-shadow:0 0 0 3px rgba(45
       <button ontouchstart="event.preventDefault();lockKey('ok')" onclick="lockKey('ok')" class="lk-btn" style="font-size:13px;font-weight:700;color:#52B788">OK</button>
     </div>
   </div>
-  <!-- end lock screen -->
+  </div><!-- end lock screen -->
 
   <div class="modal-bg" id="info-modal-bg">
     <div class="modal" id="info-modal-content"></div>
@@ -1496,14 +1496,12 @@ function setAppContentInteractive(on){
 let _infoLastFire=0;
 function openInfoModal(id){
   const now=Date.now();
-  if(now-_infoLastFire<300){console.log('info debounced');return;}
+  if(now-_infoLastFire<300)return;
   _infoLastFire=now;
   const t=state.tasks.find(t=>String(t.id)===String(id));
-  console.log('openInfoModal',id,'task found:',!!t,'sessions loaded:',state.sessions.length);
   if(!t)return;
   renderInfoModal(id);
   const bg=document.getElementById('info-modal-bg');
-  console.log('modal bg found:',!!bg,'adding open class');
   if(bg)bg.classList.add('open');
 }
 

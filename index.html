@@ -1158,24 +1158,29 @@ async function renderAdminContent(){
 
 // ── DRAG TO REORDER (Today view, touch-first for iOS) ─────────
 let _drag={id:null,el:null,ghost:null,offsetY:0,lastTarget:null};
+let _dragListenersAdded=false;
 
 function initTodayDrag(){
+  // Attach touchstart to each drag handle
   document.querySelectorAll('#today-inner .task-card[data-id]').forEach(el=>{
     const handle=el.querySelector('.drag-handle');
     if(!handle)return;
 
-    // ── TOUCH (iOS/Android) ──────────────────────────────
-    handle.addEventListener('touchstart',e=>{
+    // Clone and replace to remove stale listeners from previous renders
+    const newHandle=handle.cloneNode(true);
+    handle.parentNode.replaceChild(newHandle,handle);
+
+    newHandle.addEventListener('touchstart',e=>{
+      e.stopPropagation();
       e.preventDefault();
       const t=e.touches[0];
-      _startDrag(el, t.clientX, t.clientY);
+      _startDrag(el,t.clientX,t.clientY);
     },{passive:false});
 
-    // ── MOUSE (desktop Chrome/Safari) ───────────────────
-    handle.addEventListener('mousedown',e=>{
+    newHandle.addEventListener('mousedown',e=>{
       e.preventDefault();
-      _startDrag(el, e.clientX, e.clientY);
-      const onMove=ev=>_moveDrag(ev.clientX, ev.clientY);
+      _startDrag(el,e.clientX,e.clientY);
+      const onMove=ev=>{ev.preventDefault();_moveDrag(ev.clientX,ev.clientY)};
       const onUp=()=>{
         _endDrag();
         window.removeEventListener('mousemove',onMove);
@@ -1186,71 +1191,75 @@ function initTodayDrag(){
     });
   });
 
-  // Touch move/end on document so they fire anywhere during drag
-  // Remove old listeners first to avoid duplicates on re-render
-  document.removeEventListener('touchmove',_onDocTouchMove);
-  document.removeEventListener('touchend',_onDocTouchEnd);
-  document.addEventListener('touchmove',_onDocTouchMove,{passive:false});
-  document.addEventListener('touchend',_onDocTouchEnd,{passive:false});
+  // Add document-level touch listeners only once ever
+  if(!_dragListenersAdded){
+    _dragListenersAdded=true;
+    document.addEventListener('touchmove',e=>{
+      if(!_drag.el)return;
+      e.preventDefault();
+      _moveDrag(e.touches[0].clientX,e.touches[0].clientY);
+    },{passive:false});
+    document.addEventListener('touchend',e=>{
+      if(!_drag.el)return;
+      _endDrag();
+    },{passive:false});
+    document.addEventListener('touchcancel',e=>{
+      if(!_drag.el)return;
+      // Clean up without reordering
+      if(_drag.ghost)_drag.ghost.remove();
+      if(_drag.el)_drag.el.style.opacity='';
+      document.querySelectorAll('.task-card').forEach(c=>c.classList.remove('drag-over'));
+      _drag={id:null,el:null,ghost:null,offsetY:0,lastTarget:null};
+    },{passive:false});
+  }
 }
 
-function _onDocTouchMove(e){
-  if(!_drag.el)return;
-  e.preventDefault();
-  const t=e.touches[0];
-  _moveDrag(t.clientX,t.clientY);
-}
-
-function _onDocTouchEnd(e){
-  if(!_drag.el)return;
-  e.preventDefault();
-  _endDrag();
-}
-
-function _startDrag(el, clientX, clientY){
+function _startDrag(el,clientX,clientY){
   _drag.id=el.dataset.id;
   _drag.el=el;
   _drag.lastTarget=null;
 
-  // Offset from top of card to finger/cursor so ghost doesn't jump
   const rect=el.getBoundingClientRect();
   _drag.offsetY=clientY-rect.top;
 
-  // Ghost clone
+  // Create ghost clone that follows finger
   const ghost=el.cloneNode(true);
-  ghost.style.cssText=`position:fixed;left:${rect.left}px;top:${rect.top}px;width:${rect.width}px;opacity:0.85;z-index:500;pointer-events:none;border-radius:22px;box-shadow:0 8px 28px rgba(0,0,0,.2);transition:none;background:#fff`;
+  ghost.style.cssText=`
+    position:fixed;
+    left:${rect.left}px;
+    top:${rect.top}px;
+    width:${rect.width}px;
+    opacity:0.9;
+    z-index:9990;
+    pointer-events:none;
+    border-radius:22px;
+    box-shadow:0 12px 32px rgba(0,0,0,.25);
+    transition:none;
+    background:#fff;
+    transform:scale(1.02);
+  `;
   document.body.appendChild(ghost);
   _drag.ghost=ghost;
-  el.style.opacity='0.25';
+  el.style.opacity='0.3';
 }
 
-function _moveDrag(clientX, clientY){
-  if(!_drag.ghost)return;
+function _moveDrag(clientX,clientY){
+  if(!_drag.ghost||!_drag.el)return;
 
-  // Move ghost to follow finger/cursor
+  // Move ghost
   _drag.ghost.style.top=(clientY-_drag.offsetY)+'px';
 
-  // Find target card under the pointer
-  // Hide ghost so it doesn't intercept the hit test
-  _drag.ghost.style.visibility='hidden';
+  // Hit test — hide ghost briefly so it doesn't block the test
+  _drag.ghost.style.display='none';
+  const target=document.elementFromPoint(clientX,clientY);
+  _drag.ghost.style.display='';
 
-  // Use elementsFromPoint (plural) to get full stack, more reliable on iOS
-  let targetCard=null;
-  const els=document.elementsFromPoint?
-    document.elementsFromPoint(clientX,clientY):
-    [document.elementFromPoint(clientX,clientY)];
-
-  for(const el of els){
-    const card=el.closest?.('.task-card[data-id]');
-    if(card&&card!==_drag.el){targetCard=card;break;}
-    if(el.matches?.('.task-card[data-id]')&&el!==_drag.el){targetCard=el;break;}
-  }
-
-  _drag.ghost.style.visibility='visible';
+  // Walk up from target to find a task card
+  const targetCard=target?.closest?.('#today-inner .task-card[data-id]');
 
   document.querySelectorAll('#today-inner .task-card').forEach(c=>c.classList.remove('drag-over'));
 
-  if(targetCard){
+  if(targetCard&&targetCard!==_drag.el){
     targetCard.classList.add('drag-over');
     _drag.lastTarget=targetCard.dataset.id;
   }
@@ -1265,8 +1274,8 @@ function _endDrag(){
   const toId=_drag.lastTarget;
   _drag={id:null,el:null,ghost:null,offsetY:0,lastTarget:null};
 
-  if(toId && toId!==fromId){
-    reorderTask(fromId, toId);
+  if(toId&&toId!==fromId){
+    reorderTask(fromId,toId);
   }
 }
 

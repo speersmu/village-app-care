@@ -1578,8 +1578,15 @@ function printWithSessions(selectedSessions){
   overlay.style.display='block';
   markWritten();
 
-  // Trigger print after a short delay so overlay renders first
-  setTimeout(()=>window.print(),300);
+  // Force a full layout reflow before printing
+  // iOS needs time to render dynamically injected content
+  requestAnimationFrame(()=>{
+    // Read a layout property to force reflow
+    void overlay.offsetHeight;
+    requestAnimationFrame(()=>{
+      setTimeout(()=>window.print(),500);
+    });
+  });
 }
 
 // ── INFO MODAL ────────────────────────────────────────────────

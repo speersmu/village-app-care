@@ -764,8 +764,14 @@ const SESSION_MIGRATION={'morning':'s_morning','lunchtime':'s_lunchtime','aftern
 
 function migrateSessionId(val){
   if(!val||val==='unset')return'unset';
+  // Already a proper session ID (starts with s_)
+  if(state.sessions.some(s=>s.id===val))return val;
+  // Try hardcoded migration map
   if(SESSION_MIGRATION[val])return SESSION_MIGRATION[val];
-  return val; // already an ID like s_1234
+  // Try matching by session name (case-insensitive) as last resort
+  const byName=state.sessions.find(s=>s.name.toLowerCase()===val.toLowerCase());
+  if(byName)return byName.id;
+  return'unset';
 }
 
 function getSessionById(id){
@@ -1610,7 +1616,9 @@ function openInfoModal(id){
   const now=Date.now();
   if(now-_infoLastFire<300)return;
   _infoLastFire=now;
-  const t=state.tasks.find(t=>String(t.id)===String(id));
+  // Look in both regular tasks and free extras
+  const t=state.tasks.find(t=>String(t.id)===String(id))
+    ||state.freeExtras.find(t=>String(t.id)===String(id));
   if(!t)return;
   renderInfoModal(id);
   const bg=document.getElementById('info-modal-bg');
@@ -1618,7 +1626,8 @@ function openInfoModal(id){
 }
 
 function renderInfoModal(id){
-  const t=state.tasks.find(t=>String(t.id)===String(id));
+  const t=state.tasks.find(t=>String(t.id)===String(id))
+    ||state.freeExtras.find(t=>String(t.id)===String(id));
   if(!t)return;
   const effSess=getEffectiveSession(t);
   const isOverridden=!!state.sessionOverrides[String(t.id)];

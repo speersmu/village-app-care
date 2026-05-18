@@ -1064,11 +1064,26 @@ async function checkPin(){
   }catch(e){const el=document.getElementById('pin-err');if(el)el.textContent='Connection error.'}
 }
 async function renderAdminContent(){
-  document.getElementById('admin-inner').innerHTML=loading();
+  // Render immediately from current state — no loading screen
+  _renderAdminHTML();
+  // Fetch fresh tasks/settings in background and re-render if changed
   try{
     const[tr,sr]=await Promise.all([api('getTasks'),api('getSettings')]);
-    state.tasks=tr.tasks||[];state.settings=sr.settings||{};
-  }catch(e){document.getElementById('admin-inner').innerHTML=`<div class="err-banner">Could not load. ${e.message}</div>`;return}
+    const changed=
+      JSON.stringify(tr.tasks||[])!==JSON.stringify(state.tasks)||
+      JSON.stringify(sr.settings||{})!==JSON.stringify(state.settings);
+    if(changed){
+      state.tasks=tr.tasks||[];
+      state.settings=sr.settings||{};
+      const adminEl=document.getElementById('scr-admin');
+      const scrollTop=adminEl?.scrollTop||0;
+      _renderAdminHTML();
+      requestAnimationFrame(()=>{if(adminEl)adminEl.scrollTop=scrollTop;});
+    }
+  }catch(e){console.warn('Admin background refresh failed:',e.message)}
+}
+
+function _renderAdminHTML(){
   const xmasOn=state.settings.christmasMode==='true';
   const groups={};
   // Sort tasks by sortOrder field, then build category groups
@@ -1106,6 +1121,40 @@ async function renderAdminContent(){
   });
   document.getElementById('admin-inner').innerHTML=`
   <div class="admin-wrap">
+    <div class="card" id="sessions-card">
+      <h3>Sessions</h3>
+      ${state.sessions.length?state.sessions.sort((a,b)=>a.sortOrder-b.sortOrder).map(s=>`
+        <div class="master-item" style="align-items:center">
+          <span style="font-size:22px;margin-right:6px">${s.emoji}</span>
+          <div class="master-item-info">
+            <div class="master-item-name" style="${s.active===false?'color:var(--pebble);text-decoration:line-through':''}">${s.name}</div>
+            <div class="master-freq">${s.startTime} – ${s.endTime}</div>
+          </div>
+          <div class="master-item-controls">
+            <button class="toggle-sw-light${s.active!==false?' on':''}" ontouchstart="event.preventDefault();toggleSessionActive('${s.id}')" onclick="toggleSessionActive('${s.id}')" title="${s.active!==false?'Active — tap to deactivate':'Inactive — tap to activate'}"></button>
+            <button class="del-btn" ontouchstart="event.preventDefault();deleteSessionAdmin('${s.id}')" onclick="deleteSessionAdmin('${s.id}')" title="Delete session">×</button>
+          </div>
+        </div>`).join(''):'<div style="font-size:13px;color:var(--pebble);padding:8px 0">No sessions yet.</div>'}
+      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--linen)">
+        <div style="font-size:12px;font-weight:700;color:var(--pebble);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Add session</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <input type="text" id="sess-emoji" placeholder="Emoji" maxlength="4" style="width:64px;text-align:center;font-size:20px;padding:8px">
+          <input type="text" id="sess-name" placeholder="Session name" style="flex:1">
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:10px">
+          <div style="flex:1">
+            <label class="fl" style="margin-top:0">Start time</label>
+            <input type="time" id="sess-start" style="width:100%">
+          </div>
+          <div style="flex:1">
+            <label class="fl" style="margin-top:0">End time</label>
+            <input type="time" id="sess-end" style="width:100%">
+          </div>
+        </div>
+        <button class="btn btn-primary" ontouchstart="event.preventDefault();addSessionAdmin()" onclick="addSessionAdmin()">Add session</button>
+        <div id="sess-flash" class="flash"></div>
+      </div>
+    </div>
     <div class="card">
       <h3>Seasonal settings</h3>
       <div class="xmas-row">
@@ -1153,40 +1202,6 @@ async function renderAdminContent(){
       <button class="btn btn-sec" onclick="adminLock()">Lock admin area</button>
     </div>
     <div class="card"><button class="btn btn-danger" onclick="resetToday()">Reset today's checklist</button></div>
-    <div class="card" id="sessions-card">
-      <h3>Sessions</h3>
-      ${state.sessions.length?state.sessions.sort((a,b)=>a.sortOrder-b.sortOrder).map(s=>`
-        <div class="master-item" style="align-items:center">
-          <span style="font-size:22px;margin-right:6px">${s.emoji}</span>
-          <div class="master-item-info">
-            <div class="master-item-name" style="${s.active===false?'color:var(--pebble);text-decoration:line-through':''}">${s.name}</div>
-            <div class="master-freq">${s.startTime} – ${s.endTime}</div>
-          </div>
-          <div class="master-item-controls">
-            <button class="toggle-sw-light${s.active!==false?' on':''}" ontouchstart="event.preventDefault();toggleSessionActive('${s.id}')" onclick="toggleSessionActive('${s.id}')" title="${s.active!==false?'Active — tap to deactivate':'Inactive — tap to activate'}"></button>
-            <button class="del-btn" onclick="deleteSessionAdmin('${s.id}')" title="Delete session">×</button>
-          </div>
-        </div>`).join(''):'<div style="font-size:13px;color:var(--pebble);padding:8px 0">No sessions yet.</div>'}
-      <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--linen)">
-        <div style="font-size:12px;font-weight:700;color:var(--pebble);letter-spacing:.06em;text-transform:uppercase;margin-bottom:10px">Add session</div>
-        <div style="display:flex;gap:8px;margin-bottom:8px">
-          <input type="text" id="sess-emoji" placeholder="Emoji" maxlength="4" style="width:64px;text-align:center;font-size:20px;padding:8px">
-          <input type="text" id="sess-name" placeholder="Session name" style="flex:1">
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:10px">
-          <div style="flex:1">
-            <label class="fl" style="margin-top:0">Start time</label>
-            <input type="time" id="sess-start" style="width:100%">
-          </div>
-          <div style="flex:1">
-            <label class="fl" style="margin-top:0">End time</label>
-            <input type="time" id="sess-end" style="width:100%">
-          </div>
-        </div>
-        <button class="btn btn-primary" onclick="addSessionAdmin()">Add session</button>
-        <div id="sess-flash" class="flash"></div>
-      </div>
-    </div>
   </div>`;
 }
 

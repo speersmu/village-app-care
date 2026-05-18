@@ -62,10 +62,15 @@ html,body{height:100%;overflow:hidden;background:var(--parchment);font-family:'D
 .topbar-title{font-size:19px;font-weight:700;color:var(--white)}
 .easy-toggle{display:flex;align-items:center;gap:6px;flex-shrink:0;padding-bottom:2px}
 .easy-label{font-size:12px;color:var(--pebble);white-space:nowrap}
-.toggle-sw{width:40px;height:24px;border-radius:12px;background:rgba(255,255,255,.2);border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0}
+.toggle-sw{width:40px;height:24px;border-radius:12px;background:rgba(255,255,255,.2);border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .toggle-sw.on{background:var(--sage)}
 .toggle-sw::after{content:'';position:absolute;width:18px;height:18px;border-radius:50%;background:#fff;top:3px;left:3px;transition:transform .2s}
 .toggle-sw.on::after{transform:translateX(16px)}
+/* Light variant for use on white card backgrounds */
+.toggle-sw-light{width:44px;height:26px;border-radius:13px;background:var(--linen);border:none;cursor:pointer;position:relative;transition:background .2s;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+.toggle-sw-light.on{background:var(--forest)}
+.toggle-sw-light::after{content:'';position:absolute;width:20px;height:20px;border-radius:50%;background:#fff;top:3px;left:3px;transition:transform .2s;box-shadow:0 1px 3px rgba(0,0,0,.15)}
+.toggle-sw-light.on::after{transform:translateX(18px)}
 .screen{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-bottom:16px;display:none}
 .screen.active{display:block}
 
@@ -213,7 +218,7 @@ input:focus,select:focus{border-color:var(--forest);box-shadow:0 0 0 3px rgba(45
 .master-item.inactive .master-item-name{color:var(--pebble);text-decoration:line-through}
 .master-freq{font-size:11px;color:var(--pebble);margin-top:2px}
 .master-item-controls{display:flex;align-items:center;gap:6px;flex-shrink:0;flex-wrap:nowrap}
-.tog-btn{padding:5px 11px;border:1px solid var(--linen);border-radius:8px;background:var(--parchment);color:var(--driftwood);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0}
+.tog-btn{padding:5px 11px;border:1px solid var(--linen);border-radius:8px;background:var(--parchment);color:var(--driftwood);font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;white-space:nowrap;flex-shrink:0;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 .tog-btn.on{background:var(--mist);color:var(--deep-forest);border-color:var(--sage)}
 .del-btn{background:none;border:none;color:var(--pebble);cursor:pointer;font-size:20px;padding:4px 6px;line-height:1;flex-shrink:0}
 .xmas-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0}
@@ -1093,7 +1098,7 @@ async function renderAdminContent(){
         </div>
         <div class="master-item-controls">
           <button class="tog-btn" style="padding:4px 8px;font-size:13px" onclick="openDescEdit('${t.id}')" title="Edit notes">📝</button>
-          <button class="tog-btn${t.active?' on':''}" onclick="toggleActive('${t.id}')">${t.active?'On':'Off'}</button>
+          <button class="tog-btn${t.active?' on':''}" ontouchstart="event.preventDefault();toggleActive('${t.id}')" onclick="toggleActive('${t.id}')">${t.active?'On':'Off'}</button>
           <button class="del-btn" onclick="deleteTask('${t.id}')">×</button>
         </div>
       </div>`;
@@ -1105,7 +1110,7 @@ async function renderAdminContent(){
       <h3>Seasonal settings</h3>
       <div class="xmas-row">
         <div><div class="xmas-label">Christmas mode</div><div class="xmas-sub">Shows Christmas tasks (Nov–Feb)</div></div>
-        <button class="toggle-sw${xmasOn?' on':''}" id="xmas-toggle" onclick="toggleXmas()"></button>
+        <button class="toggle-sw-light${xmasOn?' on':''}" id="xmas-toggle" ontouchstart="event.preventDefault();toggleXmas()" onclick="toggleXmas()"></button>
       </div>
     </div>
     <div class="card"><h3>All tasks</h3>${listHtml||'<div style="color:var(--text3);font-size:14px">No tasks.</div>'}</div>
@@ -1158,7 +1163,7 @@ async function renderAdminContent(){
             <div class="master-freq">${s.startTime} – ${s.endTime}</div>
           </div>
           <div class="master-item-controls">
-            <button class="tog-btn${s.active!==false?' on':''}" onclick="toggleSessionActive('${s.id}')">${s.active!==false?'Active':'Off'}</button>
+            <button class="toggle-sw-light${s.active!==false?' on':''}" ontouchstart="event.preventDefault();toggleSessionActive('${s.id}')" onclick="toggleSessionActive('${s.id}')" title="${s.active!==false?'Active — tap to deactivate':'Inactive — tap to activate'}"></button>
             <button class="del-btn" onclick="deleteSessionAdmin('${s.id}')" title="Delete session">×</button>
           </div>
         </div>`).join(''):'<div style="font-size:13px;color:var(--pebble);padding:8px 0">No sessions yet.</div>'}

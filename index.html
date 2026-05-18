@@ -1336,13 +1336,26 @@ async function toggleXmas(){
   catch(e){alert('Error: '+e.message)}
 }
 async function toggleActive(id){
-  try{const r=await apiPost({action:'toggleTask',id});const t=state.tasks.find(t=>t.id===id);if(t)t.active=r.active;renderAdminContent()}
-  catch(e){alert('Error: '+e.message)}
+  const adminEl=document.getElementById('scr-admin');
+  const scrollTop=adminEl?.scrollTop||0;
+  try{
+    const r=await apiPost({action:'toggleTask',id});
+    const t=state.tasks.find(t=>t.id===id);
+    if(t)t.active=r.active;
+    renderAdminContent();
+    requestAnimationFrame(()=>{if(adminEl)adminEl.scrollTop=scrollTop;});
+  }catch(e){alert('Error: '+e.message)}
 }
 async function deleteTask(id){
   if(!confirm('Remove this task permanently?'))return;
-  try{await apiPost({action:'deleteTask',id});state.tasks=state.tasks.filter(t=>t.id!==id);renderAdminContent()}
-  catch(e){alert('Error: '+e.message)}
+  const adminEl=document.getElementById('scr-admin');
+  const scrollTop=adminEl?.scrollTop||0;
+  try{
+    await apiPost({action:'deleteTask',id});
+    state.tasks=state.tasks.filter(t=>t.id!==id);
+    renderAdminContent();
+    requestAnimationFrame(()=>{if(adminEl)adminEl.scrollTop=scrollTop;});
+  }catch(e){alert('Error: '+e.message)}
 }
 async function addTask(){
   const name=document.getElementById('new-name').value.trim();if(!name)return;
@@ -1367,11 +1380,19 @@ async function toggleSessionActive(id){
   if(!s)return;
   const next=s.active===false?'Yes':'No';
   s.active=next==='Yes';
+  // Save scroll position before re-render
+  const adminScroll=document.getElementById('scr-admin')?.scrollTop||0;
+  renderAdminContent();
+  // Restore scroll position after render
+  requestAnimationFrame(()=>{
+    const adminEl=document.getElementById('scr-admin');
+    if(adminEl)adminEl.scrollTop=adminScroll;
+  });
   try{
     await apiPost({action:'updateSession',id,field:'active',value:next});
-    renderAdminContent();
-    renderToday();
-  }catch(e){alert('Error updating session: '+e.message)}
+  }catch(e){
+    console.error('Error saving session active state:',e.message);
+  }
 }
 
 async function addSessionAdmin(){

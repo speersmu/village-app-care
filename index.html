@@ -103,7 +103,7 @@ html,body{height:100%;overflow:hidden;background:var(--parchment);font-family:'D
 .task-card.done .tick{width:22px;height:22px;border-width:1.5px}
 .easy-mode .task-card.done .task-name{font-size:15px}
 .task-row{display:flex;align-items:center;gap:14px;padding:var(--task-pad) 14px var(--task-pad) 16px;cursor:pointer;user-select:none}
-.tick{width:var(--tick-size);height:var(--tick-size);border-radius:50%;border:2px solid var(--linen);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 200ms ease}
+.tick{width:var(--tick-size);height:var(--tick-size);border-radius:50%;border:2px solid var(--linen);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all 200ms ease;touch-action:manipulation;-webkit-tap-highlight-color:transparent;cursor:pointer}
 .tick.on{background:var(--forest);border-color:var(--forest)}
 .tick svg{display:none}
 .tick.on svg{display:block}
@@ -696,9 +696,16 @@ function renderToday(){
     .sort((a,b)=>(a.sortOrder||0)-(b.sortOrder||0));
   const dailyTasks=active.filter(t=>isScheduledToday(t.freq)&&t.freq!=='as-needed');
   const pickedTasks=getPickedTaskObjects();
-  const allToday=[...dailyTasks,...pickedTasks,...state.freeExtras];
-  const total=allToday.length;
-  const done=allToday.filter(t=>state.checked.includes(t.id)).length;
+  const activeSessIds=new Set(state.sessions.filter(s=>s.active!==false).map(s=>s.id));
+  const allToday=[...dailyTasks,...pickedTasks,...state.freeExtras]
+    .filter(t=>!state.hiddenToday.includes(String(t.id)));
+  // Only count tasks that are actually visible (in active sessions or unassigned shown)
+  const visibleToday=allToday.filter(t=>{
+    const sid=getEffectiveSession(t);
+    return sid==='unset'||activeSessIds.has(sid);
+  });
+  const total=visibleToday.length;
+  const done=visibleToday.filter(t=>state.checked.includes(t.id)).length;
   const pct=total?Math.round(done/total*100):0;
 
   let html=`
@@ -834,9 +841,9 @@ function taskCardHtml(t,isExtra=false){
   const sessObj=getSessionById(effSess);
   const sessBadge=sessObj?`<span class="sess-badge sess-dynamic" style="background:#F5F3FF;color:#3C3489">${sessObj.emoji} ${sessObj.name}</span>`:'';
   return`<div class="task-card${isDone?' done':''}" data-id="${t.id}">
-    <div class="task-row" onclick="toggleTask('${t.id}')">
+    <div class="task-row">
       <div class="drag-handle" title="Hold to reorder">⠿</div>
-      <div class="tick${isDone?' on':''}"><svg width="14" height="14" viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <div class="tick${isDone?' on':''}" onclick="toggleTask('${t.id}')" ontouchstart="event.stopPropagation();event.preventDefault();toggleTask('${t.id}')" style="cursor:pointer;flex-shrink:0"><svg width="14" height="14" viewBox="0 0 14 14"><polyline points="2,7 5.5,10.5 12,3" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       <div class="task-info">
         <div class="task-name">${t.name}</div>
         <span class="task-badge cat-${t.cat||'extra'}">${CAT_LABELS[t.cat]||t.cat||'Extra'}</span>${sessBadge}

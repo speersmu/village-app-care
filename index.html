@@ -559,9 +559,9 @@ function goScreen(name){
     pb.style.letterSpacing=easy?'.02em':'0';
   }
   if(name==='today'){
-    // Always reset to today when navigating to the Today tab
-    if(name==='today'&&_viewOffset!==0){_viewOffset=0;}
-    if(state.tasks.length===0)loadToday();
+    const wasOnTomorrow=_viewOffset!==0;
+    _viewOffset=0; // always reset to today when tapping Today tab
+    if(state.tasks.length===0||wasOnTomorrow)loadToday();
     else{renderToday();if(!_saveExtrasPending&&_savesInFlight===0)refreshToday();}
   }
   if(name==='pick'){
@@ -700,10 +700,23 @@ setInterval(()=>{
 // Refresh when user returns to the tab after being away
 // visibility change handled by lock screen above
 
-function switchView(offset){
+async function switchView(offset){
   if(_viewOffset===offset)return;
+  // Flush any pending saves for the current view before switching
+  if(_saveExtrasTimer){
+    clearTimeout(_saveExtrasTimer);
+    _saveExtrasTimer=null;
+    const sentinel={id:'__picked__',name:JSON.stringify(state.pickedExtras),cat:'',note:''};
+    const sessSentinel={id:'__session_overrides__',name:JSON.stringify(state.sessionOverrides),cat:'',note:''};
+    const hiddenSentinel={id:'__hidden__',name:JSON.stringify(state.hiddenToday),cat:'',note:''};
+    const free=state.freeExtras.map(e=>({...e}));
+    try{await apiPost({action:'setExtras',date:viewKey(),extras:[sentinel,sessSentinel,hiddenSentinel,...free]})}
+    catch(e){console.warn('switchView flush failed:',e.message)}
+    _saveExtrasPending=false;
+    endSave();
+  }
   _viewOffset=offset;
-  loadToday(); // reload data for the new date
+  loadToday();
 }
 
 function getPickedTaskObjects(){

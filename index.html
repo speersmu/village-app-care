@@ -472,7 +472,7 @@ function viewLabel(){
 }
 function ls(k,d){try{const v=localStorage.getItem(k);return v===null?d:JSON.parse(v)}catch{return d}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch{}}
-const HARDCODED_API_URL='https://script.google.com/macros/s/AKfycbwWyGFphT5MG05l5RJC3D_FU76ldvwm_fsVI_yVd8SstiwPWziMd1mIaBt48CmjYR-veg/exec';
+const HARDCODED_API_URL='https://script.google.com/macros/s/AKfycby1kv4ZCjtB-cwQOsNXRDZIihjugXosk2IqKODh7Ay--LshgIS3o_9Fq6rZOuXKIHuC/exec';
 // Clear any previously cached URL so the new deployment is always used
 if(ls('api_url','')!==HARDCODED_API_URL)lsSet('api_url','');
 function getApiUrl(){return HARDCODED_API_URL}
@@ -482,7 +482,7 @@ function setAdminUnlocked(v){lsSet('admin_unlocked',v)}
 function isEasyMode(){return ls('easy_mode',false)}
 
 // Fetch with timeout using Promise.race — avoids AbortSignal cloning issues on mobile
-function fetchWithTimeout(url,opts={},ms=12000){
+function fetchWithTimeout(url,opts={},ms=25000){
   const timeout=new Promise((_,reject)=>setTimeout(()=>reject(new Error('Request timed out')),ms));
   return Promise.race([fetch(url,opts),timeout]);
 }
@@ -598,7 +598,7 @@ async function loadToday(){
     state.settings=sr.settings||{};
     renderToday();
   }catch(e){
-    document.getElementById('today-inner').innerHTML=`<div class="err-banner">Could not load tasks. Check your connection.<br><small>${e.message}</small></div>`;
+    document.getElementById('today-inner').innerHTML=`<div class="err-banner">Could not load tasks — Google may be slow to start up.<br><small>${e.message}</small><br><br><button onclick="loadToday()" style="margin-top:4px;padding:8px 16px;background:var(--forest);color:#fff;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;touch-action:manipulation">Try again</button></div>`;
   }
 }
 
@@ -1177,13 +1177,19 @@ function _renderAdminHTML(){
     <div class="card" id="sessions-card">
       <h3>Sessions</h3>
       ${state.sessions.length?state.sessions.sort((a,b)=>a.sortOrder-b.sortOrder).map(s=>`
-        <div class="master-item" style="align-items:center">
-          <span style="font-size:22px;margin-right:6px">${s.emoji}</span>
+        <div class="master-item" style="align-items:flex-start;padding:14px 0">
+          <span style="font-size:22px;margin-right:6px;margin-top:2px">${s.emoji}</span>
           <div class="master-item-info">
             <div class="master-item-name" style="${s.active===false?'color:var(--pebble);text-decoration:line-through':''}">${s.name}</div>
             <div class="master-freq">${s.startTime} – ${s.endTime}</div>
+            <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+              <input type="text" placeholder="Carer name (optional)" value="${s.carerName||''}"
+                style="flex:1;padding:7px 10px;font-size:13px;border:1px solid var(--linen);border-radius:8px;background:var(--white);color:var(--stone);font-family:inherit"
+                onchange="updateCarerName('${s.id}',this.value)"
+                onblur="updateCarerName('${s.id}',this.value)">
+            </div>
           </div>
-          <div class="master-item-controls">
+          <div class="master-item-controls" style="margin-top:2px">
             <button class="toggle-sw-light${s.active!==false?' on':''}" ontouchstart="event.preventDefault();toggleSessionActive('${s.id}')" onclick="toggleSessionActive('${s.id}')" title="${s.active!==false?'Active — tap to deactivate':'Inactive — tap to activate'}"></button>
             <button class="del-btn" ontouchstart="event.preventDefault();deleteSessionAdmin('${s.id}')" onclick="deleteSessionAdmin('${s.id}')" title="Delete session">×</button>
           </div>
@@ -1443,6 +1449,14 @@ async function changePin(){
 }
 function adminLock(){setAdminUnlocked(false);renderPin()}
 
+async function updateCarerName(id, name){
+  const s=state.sessions.find(s=>s.id===id);
+  if(!s)return;
+  s.carerName=name;
+  try{await apiPost({action:'updateSession',id,field:'carerName',value:name});}
+  catch(e){console.error('Error saving carer name:',e.message)}
+}
+
 async function toggleSessionActive(id){
   const s=state.sessions.find(s=>s.id===id);
   if(!s)return;
@@ -1641,18 +1655,19 @@ function printWithSessions(selectedSessions){
     </tr>`;
   }
 
-  function sectionBlock(label,emoji,colour,tasks){
+  function sectionBlock(label,emoji,colour,tasks,carerName){
     if(!tasks.length)return'';
     const doneCnt=tasks.filter(t=>state.checked.includes(t.id)).length;
     const remaining=tasks.length-doneCnt;
     const countLabel=doneCnt>0
       ?`${remaining} remaining · ${doneCnt} done`
       :`${tasks.length} task${tasks.length!==1?'s':''}`;
+    const carerLine=carerName?` <span style="font-weight:400;color:#6b7280">— Thanks, ${carerName}</span>`:'';
     return`
       <div class="print-session-block" style="margin-bottom:24px">
         <div class="print-session-header" style="display:flex;align-items:center;gap:8px;padding:10px 14px;background:${colour};border-radius:8px 8px 0 0;border:1px solid #e5e7eb;border-bottom:none">
           <span style="font-size:16px">${emoji}</span>
-          <span style="font-size:14px;font-weight:700;color:#1a1a2e;letter-spacing:.02em">${label}</span>
+          <span style="font-size:14px;font-weight:700;color:#1a1a2e;letter-spacing:.02em">${label}${carerLine}</span>
           <span style="margin-left:auto;font-size:12px;color:#6b7280">${countLabel}</span>
         </div>
         <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:0 0 8px 8px;overflow:hidden">
@@ -1669,9 +1684,9 @@ function printWithSessions(selectedSessions){
   const total=allToday.length;
   const body=printSessions
     .filter(s=>printGroups[s.id]&&printGroups[s.id].length)
-    .map(s=>sectionBlock(s.name,s.emoji,'#FAFAFA',printGroups[s.id]))
+    .map(s=>sectionBlock(s.name,s.emoji,'#FAFAFA',printGroups[s.id],s.carerName||''))
     .join('')+
-    (printGroups['unset'].length?sectionBlock('Unassigned','📋','#F3F4F6',printGroups['unset']):'');
+    (printGroups['unset'].length?sectionBlock('Unassigned','📋','#F3F4F6',printGroups['unset'],''):'');
 
   // Write content into the permanent print div (always in DOM — iOS renders it before print)
   const printDiv=document.getElementById('print-content');
